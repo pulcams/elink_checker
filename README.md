@@ -1,5 +1,5 @@
-elink_check
-===========
+elink_checker
+=============
 We're methodically checking the status of links within our Voyager bib records. Here's how (roughly):
 1. Query ELINK_INDEX, excluding hosts that don't need to be checked
 2. Select a sub-group of these links, by RECORD_ID (i.e. BIB_ID). These go into a text file (e.g. mybibs.txt) that looks like this:
