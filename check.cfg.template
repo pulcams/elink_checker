@@ -1,0 +1,14 @@
+[env]
+indir=
+outdir=
+logdir=
+share=
+
+[database]
+user=
+pw=
+ip=
+sid=
+
+[cache]
+shelf_file=
