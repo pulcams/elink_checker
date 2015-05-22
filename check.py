@@ -5,6 +5,7 @@ Check the status of links within Voyager bib records.
 1. Query ELINK_INDEX, eliminating all hosts that don't need to be checked
 2. Select sub-group of these links to check, by RECORD_ID (i.e. BIB_ID)
 3. Be sure to fill in check.cfg, then run the script like this:
+
  `python check.py -f mybibs.txt`
 
 For more: `python check.py -h`
@@ -73,7 +74,7 @@ def setup():
 	for d in dirs:
 		if not os.path.exists(d):
 			os.makedirs(d)
-			
+				
 	if not glob.glob(r''+indir+picklist):
 		print("'"+picklist+"' isn't in ./in Please move it there and try again.")
 		sys.exit()
@@ -121,7 +122,7 @@ def query_elink_index(bibid):
 	LEFT JOIN BIB_TEXT ON ELINK_INDEX.RECORD_ID = BIB_TEXT.BIB_ID
 	WHERE
 	RECORD_TYPE='B'
-	AND LINK_SUBTYPE like '%HTTP%'
+	AND LINK_SUBTYPE like '%%HTTP%%'
 	AND RECORD_ID = '%s'"""
 
 	c = db.cursor()
@@ -136,7 +137,8 @@ def query_elink_index(bibid):
 		
 		if url not in thisbib: # if not already checked just now, under the same bib id...
 			if ignore_cache==False: # if checking the cache...
-				if shelf[url] and (shelf[url].response == 200 or shelf[url].redirect_status == 200) and today in shelf[url].check_date:
+				u = shelf.get(url,None) # to avoid exceptions when the key doesn't exist
+				if u is not None and (u.response == 200 or u.redirect_status == 200) and today in u.check_date:
 					# if the URL's in the cache, status was 200, and it was already checked today, just copy values from cache
 					resp = shelf[url].response
 					redir = shelf[url].redirect_url
