@@ -2,15 +2,13 @@
 #-*- coding: utf-8 -*-
 """
 Check the status of links within Voyager bib records.
-1. Query ELINK_INDEX, eliminating all hosts that don't need to be checked
-2. Select sub-group of these links to check, by RECORD_ID (i.e. BIB_ID)
-3. Be sure to fill in check.cfg, then run the script like this:
+Be sure to fill in check.cfg, then run the script like this:
 
  `python check.py -f mybibs.txt`
 
 For more: `python check.py -h`
 
-Requires cx_Oracle.
+Requires cx_Oracle
 
 From 20150415
 pmg
@@ -29,14 +27,22 @@ import sys
 import time
 
 today = time.strftime('%Y%m%d')
+justnow = time.strftime("%m/%d/%Y %I:%M:%S %p")
 
-# parse configuration file (check.cfg)
+# parse configuration file check.cfg
 config = ConfigParser.RawConfigParser()
 config.read('check.cfg')
 indir = config.get('env', 'indir')
 outdir = config.get('env', 'outdir')
+logdir = config.get('env', 'logdir')
 share = config.get('env','share')
 shelf_file = config.get('cache','shelf_file')
+
+USER = config.get('vger', 'user')
+PASS = config.get('vger', 'pw')
+PORT = config.get('vger', 'port')
+SID = config.get('vger', 'sid')
+HOST = config.get('vger', 'ip')
 
 #===============================================================================
 # Checked class
@@ -57,27 +63,51 @@ class Checked(object):
 #===============================================================================
 # defs
 #===============================================================================
-def main():
+def main(picklist):
 	print('-' * 25)
-	setup()
 	make_report(picklist)
 	if copy_report == True:
 		mv_outfiles()
 	print('all done!')
-	
-def setup():
-	"""
-	Create ./in and ./out dirs if they don't already exist; check ./in (if exists) for picklist.
-	"""
-	dirs = [indir,outdir]
 
-	for d in dirs:
-		if not os.path.exists(d):
-			os.makedirs(d)
-				
-	if not glob.glob(r''+indir+picklist):
-		print("'"+picklist+"' isn't in ./in Please move it there and try again.")
-		sys.exit()
+
+def get_bibs(picklist):
+	"""
+	If no pick-list is given, query Voyager for the full list and generate a pick-list of all bibs
+	"""	
+	with open(logdir+'lastbib.txt','rb+') as biblist:
+		lastbib = biblist.read()
+		
+	if lastbib is None or lastbib == '\n':
+		lastbib = '0'
+
+	query = """SELECT RECORD_ID 
+			FROM ELINK_INDEX 
+			WHERE RECORD_TYPE = 'B'
+			AND RECORD_ID > %s
+			AND ROWNUM <= 1000
+			ORDER BY record_id""" % lastbib
+
+	dsn = cx_Oracle.makedsn(HOST,PORT,SID)
+	oradb = cx_Oracle.connect(USER,PASS,dsn)
+		
+	rows = oradb.cursor()
+	rows.execute(query)
+	r = rows.fetchall()
+	rows.close()
+	oradb.close()
+	
+	with open(indir+'bibs.csv','wb+') as outfile:
+		writer = csv.writer(outfile)
+		header = ['BIB_ID']
+		writer.writerow(header) 
+		for row in r:
+			writer.writerow(row)
+		
+		with open(logdir+'lastbib.txt','wb+') as lastbib, open(logdir+'bib.log','ab+') as biblog:
+			lastbib.write(str(row[0]))
+			biblog.write(justnow + '\t' + str(row[0])+'\n')
+
 
 def make_report(picklist):
 	"""
@@ -104,17 +134,12 @@ def make_report(picklist):
 def query_elink_index(bibid):
 	"""
 	Query the ELINK_INDEX table
-	"""
-	user = config.get('database', 'user')
-	pw = config.get('database', 'pw')
-	sid = config.get('database', 'sid')
-	ip = config.get('database', 'ip')
-	
+	"""	
 	thisbib = [] # temp list of URLs per bib id; the same URL can appear in a bib more than once; let's check just once
 	shelf = shelve.open(shelf_file, protocol=pickle.HIGHEST_PROTOCOL) # cache
 	
-	dsn_tns = cx_Oracle.makedsn(ip,1521,sid)
-	db = cx_Oracle.connect(user,pw,dsn_tns)
+	dsn = cx_Oracle.makedsn(HOST,PORT,SID)
+	db = cx_Oracle.connect(USER,PASS,dsn)
 	
 	sql = """SELECT RECORD_ID, TITLE_BRIEF, LINK
 	FROM
@@ -235,7 +260,7 @@ def mv_outfiles():
            
 if __name__ == "__main__": 
 	parser = argparse.ArgumentParser(description='Check ELINK_INDEX tables against list of BIB_IDs')
-	parser.add_argument('-f','--filename',required=True,type=str,dest="picklist",help="The name of picklist file, e.g. 'bibs_20150415.csv' (assumed to be in ./in). Can just be a list of BIB_IDs.")
+	parser.add_argument('-f','--filename',required=False,type=str,dest="picklist",help="Optional. The name of picklist file, e.g. 'bibs_20150415.csv' (assumed to be in ./in). Can just be a list of BIB_IDs.")
 	parser.add_argument("-C", "--ignore-cache",required=False, dest="ignore_cache", action="store_true", help="Optionally ignore the cache to test all URLs freshly.")
 	parser.add_argument("-c", "--copy-report",required=False, default=True, dest="copy_report", action="store_false", help="Do not copy the resulting report to the share specified in cfg file.")
 	args = vars(parser.parse_args())
@@ -243,4 +268,8 @@ if __name__ == "__main__":
 	ignore_cache = args['ignore_cache']
 	copy_report = args['copy_report']
 	
-	main()
+	if not picklist:
+		picklist = 'bibs_'+today+'.csv'
+		get_bibs(picklist)	
+	
+	main(picklist)
