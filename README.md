@@ -1,11 +1,13 @@
 # elink_checker
 
-We're methodically checking the status of links within our Voyager bib records. Here's how (roughly):
+We're methodically checking the status of links within our Voyager bib records.
 
-1. Query ELINK_INDEX, excluding hosts that don't need to be checked
-2. Select a sub-group of these links, by RECORD_ID (i.e. BIB_ID). These go into a text file (e.g. mybibs.txt) as a list of BIB_IDs.
-3.  Be sure to fill in check.cfg, then run the script:
+Fill in check.cfg, then run:
+ `python check.py`
+ 
+Optionally, read in a file with bib_ids in the first field:
  `python check.py -f mybibs.txt`
+ 
 
 For more: `python check.py -h`
 
