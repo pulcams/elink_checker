@@ -1,0 +1,15 @@
+[env]
+indir=
+outdir=
+logdir=
+share=
+
+[vger]
+user=
+pw=
+ip=
+sid=
+port=
+
+[db]
+sqlite=
