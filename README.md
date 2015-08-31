@@ -8,7 +8,6 @@ Fill in check.cfg, then run:
 Optionally, read in a file with bib_ids in the first field:
  `python check.py -f mybibs.txt`
  
-
 For more: `python check.py -h`
 
 #### Requires
