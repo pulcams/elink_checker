@@ -2,11 +2,18 @@
 #-*- coding: utf-8 -*-
 """
 Check the status of links within Voyager bib records.
-Be sure to fill in check.cfg, then run the script like this:
+Fill in check.cfg, then run the script like this:
 
- `python check.py -f mybibs.txt`
+python check.py
+
+or 
+
+python check.py -f bibs_list.txt
 
 For more: `python check.py -h`
+
+To recreate the sqlite cache:
+CREATE TABLE bibs(bib INT, url TEXT, status TEXT, redirect TEXT, redirect_status TEXT, last_checked DATE, PRIMARY KEY (bib, url));
 
 Requires cx_Oracle
 
@@ -25,11 +32,8 @@ import sqlite3 as lite
 import sys
 import time
 
-today = time.strftime('%Y%m%d') # for csv name
-todaydb = time.strftime('%Y-%m-%d %H:%M:%S') # for db
+today = time.strftime('%Y%m%d') # for csv filename
 justnow = time.strftime("%Y-%m-%d %I:%M:%S %p") # for log
-
-numorecs = 1000 # number of records to check
 
 # parse configuration file check.cfg
 config = ConfigParser.RawConfigParser()
@@ -68,7 +72,7 @@ def get_bibs(picklist):
 	if lastbib is None or lastbib == '\n':
 		lastbib = '0'
 
-	query = """SELECT RECORD_ID 
+	query = """SELECT DISTINCT RECORD_ID 
 			FROM ELINK_INDEX 
 			WHERE RECORD_TYPE = 'B'
 			AND LINK NOT LIKE '%%hdl.handle.net/2027%%'
@@ -119,6 +123,7 @@ def make_report(picklist):
 				bibid = row[0]
 				query_elink_index(bibid) # <= check against ELINK_INDEX
 
+
 def query_elink_index(bibid):
 	"""
 	Query the ELINK_INDEX table
@@ -151,13 +156,13 @@ def query_elink_index(bibid):
 		ti = row[1]
 		url = row[2]
 	
-		if url not in thisbib: # if not already checked just now, under the same bib id...
+		if url not in thisbib: # if url not already checked just now, under the same bib id...
 			if ignore_cache==False: # if indeed checking the cache...
 				
 				with con:
 					con.row_factory = lite.Row
 					cur = con.cursor()
-					cur.execute("SELECT * FROM bibs WHERE bib=?",(bib,))
+					cur.execute("SELECT * FROM bibs WHERE bib=? and url=?",(bib,url,))
 					rows = cur.fetchall()
 					if len(rows) == 0:
 						cached = False
@@ -176,22 +181,25 @@ def query_elink_index(bibid):
 					last_checked = check_date
 				else:
 					resp,redir,redirst = get_reponse(url) # ping
-					last_checked = todaydb
-			else: # if ignoring cache
+					last_checked = time.strftime('%Y-%m-%d %H:%M:%S')
+			else: # if ignoring cache (for some good reason?)
 				resp,redir,redirst = get_reponse(url)
-				last_checked = todaydb
+				last_checked = time.strftime('%Y-%m-%d %H:%M:%S')
+				
+			if 'requests.exceptions.MissingSchema' in str(resp): # TODO: use try except
+				resp = 'bad url'
 				
 			# put the link and responses in the cache (even if not reading cache on this run)
 			with con:
 				cur = con.cursor() 
 				if cached == False:
 					# insert new url into db
-					newurl = (bib, url, resp, redir, redirst, todaydb)
+					newurl = (bib, url, resp, redir, redirst, last_checked)
 					cur.executemany("INSERT INTO bibs VALUES(?, ?, ?, ?, ?,?)", (newurl,))
 				else:
 					# or, if it was in the cache from a previous run (just in case)
-					updateurl = (url,resp, redir, redirst, todaydb, bib)
-					cur.executemany("UPDATE bibs SET url=?, status=?, redirect=?, redirect_status=?, last_checked=? WHERE bib=?", (updateurl,))
+					updateurl = (resp, redir, redirst, last_checked, bib, url)
+					cur.executemany("UPDATE bibs SET status=?, redirect=?, redirect_status=?, last_checked=? WHERE bib=? and url=?", (updateurl,))
 			
 			thisbib.append(url)
 						
@@ -208,8 +216,9 @@ def query_elink_index(bibid):
 	thisbib = []
 
 	if con:
-		con.close() # sqlite
+		con.close() # sqlite (should already be closed in 'with' blocks, but just in case)
 	c.close() # oracle
+
 
 def get_reponse(url):
 	"""
@@ -250,6 +259,7 @@ def get_reponse(url):
 		msg = sys.exc_info()[0],'',''
 	return msg
 
+
 def mv_outfiles():
 	"""
 	Move outfiles to network share
@@ -269,6 +279,7 @@ def mv_outfiles():
 		except:
 			print("problem with moving files: %s" % sys.exc_info()[1])
 			pass
+  
   
 def make_pie():
 	"""
@@ -291,18 +302,17 @@ def make_pie():
 <script src="http://www.d3plus.org/js/d3.js"></script>
 <script src="http://www.d3plus.org/js/d3plus.js"></script>
 <div class="container">
-<h1>Voyager Links</h1>
-<p>Start date: 08/31/2015</p>
-<p>Last report: """+time.strftime('%m/%d/%Y')+"""</p>
-<p>Statuses of the <span style='font-size:1.25em'>"""+total+"""</span> records checked so far...</p>
-<sub><a href='http://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html'>status codes</a></sub>
+<h1>Voyager Link Check</h1>
+<p>Start date: 09/01/2015. Last report: """+time.strftime('%m/%d/%Y')+""".</p>
+<p>Statuses of the <span style='font-size:1.25em'>"""+total+"""</span> URLs checked so far...</p>
+<sub><a href='http://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html' target="_BLANK">status codes</a></sub>
 </div>
 <div id="viz" style="width:60%;height:600px;"></div>
 <script>
 
- var attributes = [
+ /*var attributes = [
     {"name": "200", "hex": "#B2F0B2"}
-  ]
+  ]*/
 
   var data = ["""
 
@@ -315,6 +325,7 @@ def make_pie():
     .color("heatmap")
     .id("name")
     .size("value")
+    .tooltip({"share":true})
     .draw()
 
 </script> 
@@ -328,31 +339,34 @@ def make_pie():
 		cur.execute("select status, count(status) from bibs group by status")
 		rows = cur.fetchall()
 		for row in rows:
-			response = row[0]
+			response = str(row[0])
 			count = row[1]
-			if rownum == 1:
+			if rownum == 0:
 				htmlfile.write('{"value":%s,"name":"%s"}' % (count,response))
-			elif rownum > 1:
+			elif rownum > 0:
 				htmlfile.write(',\n{"value":%s,"name":"%s"}' % (count,response))
 			rownum += 1
 	htmlfile.write(footer)
 	con.close()
    
+   
 if __name__ == "__main__": 
 	parser = argparse.ArgumentParser(description='Check ELINK_INDEX tables against list of BIB_IDs')
 	parser.add_argument('-f','--filename',required=False,dest="picklist",help="Optional. The name of picklist file, e.g. 'bibs_20150415.csv' (assumed to be in ./in). Can just be a list of BIB_IDs.")
 	parser.add_argument("-C", "--ignore-cache",required=False, dest="ignore_cache", action="store_true", help="Optionally ignore the cache to test all URLs freshly.")
-	parser.add_argument("-c", "--copy-report",required=False, default=True, dest="copy_report", action="store_false", help="Do not copy the resulting report to the share specified in cfg file.")
-	parser.add_argument("-v", "--verbose",required=False, default=True, dest="verbose", action="store_true", help="Print out bibs and urls as it runs.")
+	parser.add_argument("-c", "--no-copy",required=False, default=True, dest="copy_report", action="store_false", help="Do not copy the resulting report to the share specified in cfg file.")
+	parser.add_argument("-v", "--verbose",required=False, default=False, dest="verbose", action="store_true", help="Print out bibs and urls as it runs.")
+	parser.add_argument("-n", "--number",required=False, default=1000, dest="numorecs", help="Number of records to search")
 	args = vars(parser.parse_args())
 	picklist = args['picklist'] # the list of bibs
 	ignore_cache = args['ignore_cache']
 	copy_report = args['copy_report']
 	verbose = args['verbose']
+	numorecs = args['numorecs']
 	
 	if not picklist: # if no file given...
-		picklist = 'bibs_'+today+'.csv'
-		get_bibs(picklist)
+		picklist = 'links_to_check_'+today+'.csv'
+		get_bibs(picklist) # generate a picklist, starting from the bib id in ./log/lastbib.txt
 
 	main(picklist)
 	
