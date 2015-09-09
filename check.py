@@ -306,8 +306,8 @@ def make_pie():
 <p>Start date: 09/01/2015. Last report: """+time.strftime('%m/%d/%Y')+""".</p>
 <p>Statuses of the <span style='font-size:1.25em'>"""+total+"""</span> URLs checked so far...</p>
 <sub><a href='http://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html' target="_BLANK">status codes</a></sub>
+<div id="viz" style="margin:10px 10px 10px 0px;height:600px;"></div>
 </div>
-<div id="viz" style="width:60%;height:600px;"></div>
 <script>
 
  /*var attributes = [
@@ -318,14 +318,13 @@ def make_pie():
 
    
 	footer = """]
-  d3plus.viz()
+   d3plus.viz()
     .container("#viz")
     .data(data)
-    .type("pie")
-    .color("heatmap")
+    .color(" ")
+    .type("treemap")
     .id("name")
     .size("value")
-    .tooltip({"share":true})
     .draw()
 
 </script> 
