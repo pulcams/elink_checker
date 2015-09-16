@@ -76,6 +76,7 @@ def get_bibs(picklist):
 			FROM ELINK_INDEX 
 			WHERE RECORD_TYPE = 'B'
 			AND LINK NOT LIKE '%%hdl.handle.net/2027%%'
+			AND LINK NOT LIKE '%%datapages.com%%'
 			AND RECORD_ID > %s
 			AND ROWNUM <= %s
 			ORDER BY record_id""" % (lastbib, numorecs)
