@@ -2,11 +2,11 @@
 #-*- coding: utf-8 -*-
 """
 Check the status of links within Voyager bib records.
-Fill in check.cfg, then run the script like this:
+Fill in check.cfg, then run the script like this (the usual way):
 
-python check.py
+python check.py -v
 
-or 
+or (in special cases, using a list)
 
 python check.py -f bibs_list.txt
 
