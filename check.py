@@ -75,8 +75,6 @@ def get_bibs(picklist):
 	query = """SELECT DISTINCT RECORD_ID 
 			FROM ELINK_INDEX 
 			WHERE RECORD_TYPE = 'B'
-			AND LINK NOT LIKE '%%hdl.handle.net/2027%%'
-			AND LINK NOT LIKE '%%datapages.com%%'
 			AND RECORD_ID > %s
 			AND ROWNUM <= %s
 			ORDER BY record_id""" % (lastbib, numorecs)
@@ -146,6 +144,8 @@ def query_elink_index(bibid):
 	LEFT JOIN BIB_TEXT ON ELINK_INDEX.RECORD_ID = BIB_TEXT.BIB_ID
 	WHERE
 	RECORD_TYPE='B'
+	AND (LINK NOT LIKE '%%hdl.handle.net/2027%%'
+	AND LINK NOT LIKE '%%datapages.com%%')
 	AND LINK_SUBTYPE like '%%HTTP%%'
 	AND RECORD_ID = '%s'"""
 
@@ -195,7 +195,7 @@ def query_elink_index(bibid):
 				cur = con.cursor() 
 				if cached == False:
 					# insert new url into db
-					newurl = (bib, url, resp, redir, redirst, last_checked)
+					newurl = (bib, url, str(resp), redir, redirst, last_checked)
 					cur.executemany("INSERT INTO bibs VALUES(?, ?, ?, ?, ?,?)", (newurl,))
 				else:
 					# or, if it was in the cache from a previous run (just in case)
@@ -322,7 +322,9 @@ def make_pie():
    d3plus.viz()
     .container("#viz")
     .data(data)
-    .color(" ")
+    .color(function(d){
+      return d.value > 0 ? "#BDDEBD" : "#ADD6AD";
+    })
     .type("treemap")
     .id("name")
     .size("value")
