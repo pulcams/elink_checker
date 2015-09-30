@@ -423,7 +423,7 @@ if __name__ == "__main__":
 	parser.add_argument("-C", "--ignore-cache",required=False, dest="ignore_cache", action="store_true", help="Optionally ignore the cache to test all URLs freshly.")
 	parser.add_argument("-c", "--no-copy",required=False, default=True, dest="copy_report", action="store_false", help="Do not copy the resulting report to the share specified in cfg file.")
 	parser.add_argument("-v", "--verbose",required=False, default=False, dest="verbose", action="store_true", help="Print out bibs and urls as it runs.")
-	parser.add_argument("-n", "--number",required=False, default=1000, dest="numorecs", help="Number of records to search")
+	parser.add_argument("-n", "--number",required=False, default=10000, dest="numorecs", help="Number of records to search")
 	args = vars(parser.parse_args())
 	picklist = args['picklist'] # the list of bibs
 	ignore_cache = args['ignore_cache']
