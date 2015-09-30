@@ -138,14 +138,149 @@ def query_elink_index(bibid):
 	dsn = cx_Oracle.makedsn(HOST,PORT,SID)
 	db = cx_Oracle.connect(USER,PASS,dsn)
 	
+	eliminate=[app.knovel.com
+arks.princeton.edu
+assets.cambridge.org
+bvbr.bib-bvb.de
+catalog.hathitrust.org
+catalogue.bnf.fr
+catdir.loc.gov
+congressional.proquest.com
+deposit.d-nb.de
+digital.lib.cuhk.edu.hk
+d-nb.info
+dss.princeton.edu
+dx.doi.org
+eebo.chadwyck.com
+elibrary.worldbank.org
+find.galegroup.com
+galenet.galegroup.com
+gateway.proquest.com
+gisserver.princeton.edu
+hdl.handle.net
+ieeexplore.ieee.org
+ilibri.casalini.it
+knowledge.sagepub.com
+latin.packhum.org
+library.princeton.edu
+lib-terminal.princeton.edu
+libweb.princeton.edu
+libweb2.princeton.edu
+libweb5.princeton.edu
+marc.crcnetbase.com
+name.umdl.umich.edu
+ncco.galegroup.com
+onlinelibrary.wiley.com
+opac.newsbank.com
+pao.chadwyck.com
+princeton.lib.overdrive.com
+princeton.naxosmusiclibrary.com
+proquest.safaribooksonline.com
+purl.access.gpo.gov
+purl.fdlp.gov
+roperweb.ropercenter.uconn.edu
+scitation.aip.org
+search.ebscohost.com
+sfx.princeton.edu:9003
+site.ebrary.com
+static.harpercollins.com
+wws-roxen.princeton.edu
+www.aspresolver.com
+www.british-history.ac.uk
+www.elibrary.imf.org
+www.icpsr.umich.edu
+www.ilibri.casalini.it
+www.jstor.org
+www.loc.gov
+www.nap.com
+www.netread.com
+www.pppl.gov
+www.sciencedirect.com
+www.slavery.amdigital.co.uk
+www.sourceoecd.org
+www.springerlink.com
+www.springerprotocols.com
+www-wds.worldbank.org
+
+dramonline.org
+blackwellreference.com
+ark.cdlib.org
+
+]
+	
 	sql = """SELECT RECORD_ID, TITLE_BRIEF, LINK
 	FROM
 	ELINK_INDEX
 	LEFT JOIN BIB_TEXT ON ELINK_INDEX.RECORD_ID = BIB_TEXT.BIB_ID
 	WHERE
 	RECORD_TYPE='B'
-	AND (LINK NOT LIKE '%%hdl.handle.net/2027%%'
-	AND LINK NOT LIKE '%%datapages.com%%')
+	AND (LINK NOT LIKE '%%app.knovel.com%%'
+	AND LINK NOT LIKE '%%arks.princeton.edu%%'
+	AND LINK NOT LIKE '%%assets.cambridge.org%%'
+	AND LINK NOT LIKE '%%bvbr.bib-bvb.de%%'
+	AND LINK NOT LIKE '%%catalog.hathitrust.org%%'
+	AND LINK NOT LIKE '%%catalogue.bnf.fr%%'
+	AND LINK NOT LIKE '%%catdir.loc.gov%%'
+	AND LINK NOT LIKE '%%congressional.proquest.com%%'
+	AND LINK NOT LIKE '%%datapages.com%%'
+	AND LINK NOT LIKE '%%deposit.d-nb.de%%'
+	AND LINK NOT LIKE '%%digital.lib.cuhk.edu.hk%%'
+	AND LINK NOT LIKE '%%d-nb.info%%'
+	AND LINK NOT LIKE '%%dss.princeton.edu%%'
+	AND LINK NOT LIKE '%%dx.doi.org%%'
+	AND LINK NOT LIKE '%%eebo.chadwyck.com%%'
+	AND LINK NOT LIKE '%%elibrary.worldbank.org%%'
+	AND LINK NOT LIKE '%%find.galegroup.com%%'
+	AND LINK NOT LIKE '%%galenet.galegroup.com%%'
+	AND LINK NOT LIKE '%%gateway.proquest.com%%'
+	AND LINK NOT LIKE '%%gisserver.princeton.edu%%'
+	AND LINK NOT LIKE '%%hdl.handle.net%%'
+	AND LINK NOT LIKE '%%ieeexplore.ieee.org%%'
+	AND LINK NOT LIKE '%%ilibri.casalini.it%%'
+	AND LINK NOT LIKE '%%knowledge.sagepub.com%%'
+	AND LINK NOT LIKE '%%latin.packhum.org%%'
+	AND LINK NOT LIKE '%%library.princeton.edu%%'
+	AND LINK NOT LIKE '%%lib-terminal.princeton.edu%%'
+	AND LINK NOT LIKE '%%libweb.princeton.edu%%'
+	AND LINK NOT LIKE '%%libweb2.princeton.edu%%'
+	AND LINK NOT LIKE '%%libweb5.princeton.edu%%'
+	AND LINK NOT LIKE '%%marc.crcnetbase.com%%'
+	AND LINK NOT LIKE '%%name.umdl.umich.edu%%'
+	AND LINK NOT LIKE '%%ncco.galegroup.com%%'
+	AND LINK NOT LIKE '%%onlinelibrary.wiley.com%%'
+	AND LINK NOT LIKE '%%opac.newsbank.com%%'
+	AND LINK NOT LIKE '%%pao.chadwyck.com%%'
+	AND LINK NOT LIKE '%%princeton.lib.overdrive.com%%'
+	AND LINK NOT LIKE '%%princeton.naxosmusiclibrary.com%%'
+	AND LINK NOT LIKE '%%proquest.safaribooksonline.com%%'
+	AND LINK NOT LIKE '%%purl.access.gpo.gov%%'
+	AND LINK NOT LIKE '%%purl.fdlp.gov%%'
+	AND LINK NOT LIKE '%%roperweb.ropercenter.uconn.edu%%'
+	AND LINK NOT LIKE '%%scitation.aip.org%%'
+	AND LINK NOT LIKE '%%search.ebscohost.com%%'
+	AND LINK NOT LIKE '%%sfx.princeton.edu:9003%%'
+	AND LINK NOT LIKE '%%site.ebrary.com%%'
+	AND LINK NOT LIKE '%%static.harpercollins.com%%'
+	AND LINK NOT LIKE '%%wws-roxen.princeton.edu%%'
+	AND LINK NOT LIKE '%%www.aspresolver.com%%'
+	AND LINK NOT LIKE '%%www.british-history.ac.uk%%'
+	AND LINK NOT LIKE '%%www.elibrary.imf.org%%'
+	AND LINK NOT LIKE '%%www.icpsr.umich.edu%%'
+	AND LINK NOT LIKE '%%www.ilibri.casalini.it%%'
+	AND LINK NOT LIKE '%%www.jstor.org%%'
+	AND LINK NOT LIKE '%%www.loc.gov%%'
+	AND LINK NOT LIKE '%%www.nap.com%%'
+	AND LINK NOT LIKE '%%www.netread.com%%'
+	AND LINK NOT LIKE '%%www.pppl.gov%%'
+	AND LINK NOT LIKE '%%www.sciencedirect.com%%'
+	AND LINK NOT LIKE '%%www.slavery.amdigital.co.uk%%'
+	AND LINK NOT LIKE '%%www.sourceoecd.org%%'
+	AND LINK NOT LIKE '%%www.springerlink.com%%'
+	AND LINK NOT LIKE '%%www.springerprotocols.com%%'
+	AND LINK NOT LIKE '%%www-wds.worldbank.org%%'
+	AND LINK NOT LIKE '%%dramonline.org%%'
+	AND LINK NOT LIKE '%%blackwellreference.com%%'
+	AND LINK NOT LIKE '%%ark.cdlib.org%%')
 	AND LINK_SUBTYPE like '%%HTTP%%'
 	AND RECORD_ID = '%s'"""
 
