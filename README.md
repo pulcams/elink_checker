@@ -1,6 +1,6 @@
 # elink_checker
 
-We're methodically checking the status of links within our Voyager bib records.
+We're methodically checking the status of links within our Voyager bib records at the rate of about 10,000 links per week.
 
 Fill in check.cfg, then run:
  `python check.py`
