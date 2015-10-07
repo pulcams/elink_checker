@@ -31,6 +31,7 @@ import shutil
 import sqlite3 as lite
 import sys
 import time
+import unicodecsv
 
 today = time.strftime('%Y%m%d') # for csv filename
 justnow = time.strftime("%Y-%m-%d %I:%M:%S %p") # for log
@@ -72,9 +73,78 @@ def get_bibs(picklist):
 	if lastbib is None or lastbib == '\n':
 		lastbib = '0'
 
-	query = """SELECT DISTINCT RECORD_ID 
+	query = """SELECT RECORD_ID, LINK 
 			FROM ELINK_INDEX 
-			WHERE RECORD_TYPE = 'B'
+			WHERE
+			RECORD_TYPE='B'
+			AND (LINK NOT LIKE '%%app.knovel.com%%'
+			AND LINK NOT LIKE '%%arks.princeton.edu%%'
+			AND LINK NOT LIKE '%%assets.cambridge.org%%'
+			AND LINK NOT LIKE '%%bvbr.bib-bvb.de%%'
+			AND LINK NOT LIKE '%%catalog.hathitrust.org%%'
+			AND LINK NOT LIKE '%%catalogue.bnf.fr%%'
+			AND LINK NOT LIKE '%%catdir.loc.gov%%'
+			AND LINK NOT LIKE '%%congressional.proquest.com%%'
+			AND LINK NOT LIKE '%%datapages.com%%'
+			AND LINK NOT LIKE '%%deposit.d-nb.de%%'
+			AND LINK NOT LIKE '%%digital.lib.cuhk.edu.hk%%'
+			AND LINK NOT LIKE '%%d-nb.info%%'
+			AND LINK NOT LIKE '%%dss.princeton.edu%%'
+			AND LINK NOT LIKE '%%dx.doi.org%%'
+			AND LINK NOT LIKE '%%eebo.chadwyck.com%%'
+			AND LINK NOT LIKE '%%elibrary.worldbank.org%%'
+			AND LINK NOT LIKE '%%find.galegroup.com%%'
+			AND LINK NOT LIKE '%%galenet.galegroup.com%%'
+			AND LINK NOT LIKE '%%gateway.proquest.com%%'
+			AND LINK NOT LIKE '%%getit.princeton.edu%%'
+			AND LINK NOT LIKE '%%gisserver.princeton.edu%%'
+			AND LINK NOT LIKE '%%hdl.handle.net%%'
+			AND LINK NOT LIKE '%%ieeexplore.ieee.org%%'
+			AND LINK NOT LIKE '%%ilibri.casalini.it%%'
+			AND LINK NOT LIKE '%%knowledge.sagepub.com%%'
+			AND LINK NOT LIKE '%%latin.packhum.org%%'
+			AND LINK NOT LIKE '%%library.princeton.edu%%'
+			AND LINK NOT LIKE '%%lib-terminal.princeton.edu%%'
+			AND LINK NOT LIKE '%%libweb.princeton.edu%%'
+			AND LINK NOT LIKE '%%libweb2.princeton.edu%%'
+			AND LINK NOT LIKE '%%libweb5.princeton.edu%%'
+			AND LINK NOT LIKE '%%marc.crcnetbase.com%%'
+			AND LINK NOT LIKE '%%name.umdl.umich.edu%%'
+			AND LINK NOT LIKE '%%ncco.galegroup.com%%'
+			AND LINK NOT LIKE '%%onlinelibrary.wiley.com%%'
+			AND LINK NOT LIKE '%%opac.newsbank.com%%'
+			AND LINK NOT LIKE '%%pao.chadwyck.com%%'
+			AND LINK NOT LIKE '%%princeton.lib.overdrive.com%%'
+			AND LINK NOT LIKE '%%princeton.naxosmusiclibrary.com%%'
+			AND LINK NOT LIKE '%%proquest.safaribooksonline.com%%'
+			AND LINK NOT LIKE '%%purl.access.gpo.gov%%'
+			AND LINK NOT LIKE '%%purl.fdlp.gov%%'
+			AND LINK NOT LIKE '%%roperweb.ropercenter.uconn.edu%%'
+			AND LINK NOT LIKE '%%scitation.aip.org%%'
+			AND LINK NOT LIKE '%%search.ebscohost.com%%'
+			AND LINK NOT LIKE '%%site.ebrary.com%%'
+			AND LINK NOT LIKE '%%static.harpercollins.com%%'
+			AND LINK NOT LIKE '%%wws-roxen.princeton.edu%%'
+			AND LINK NOT LIKE '%%www.aspresolver.com%%'
+			AND LINK NOT LIKE '%%www.british-history.ac.uk%%'
+			AND LINK NOT LIKE '%%www.elibrary.imf.org%%'
+			AND LINK NOT LIKE '%%www.icpsr.umich.edu%%'
+			AND LINK NOT LIKE '%%www.ilibri.casalini.it%%'
+			AND LINK NOT LIKE '%%www.jstor.org%%'
+			AND LINK NOT LIKE '%%www.loc.gov%%'
+			AND LINK NOT LIKE '%%www.nap.com%%'
+			AND LINK NOT LIKE '%%www.netread.com%%'
+			AND LINK NOT LIKE '%%www.pppl.gov%%'
+			AND LINK NOT LIKE '%%www.sciencedirect.com%%'
+			AND LINK NOT LIKE '%%www.slavery.amdigital.co.uk%%'
+			AND LINK NOT LIKE '%%www.sourceoecd.org%%'
+			AND LINK NOT LIKE '%%www.springerlink.com%%'
+			AND LINK NOT LIKE '%%www.springerprotocols.com%%'
+			AND LINK NOT LIKE '%%www-wds.worldbank.org%%'
+			AND LINK NOT LIKE '%%dramonline.org%%'
+			AND LINK NOT LIKE '%%blackwellreference.com%%'
+			AND LINK NOT LIKE '%%ark.cdlib.org%%')
+			AND LINK_SUBTYPE like '%%HTTP%%'
 			AND RECORD_ID > %s
 			AND ROWNUM <= %s
 			ORDER BY record_id""" % (lastbib, numorecs)
@@ -90,14 +160,16 @@ def get_bibs(picklist):
 	
 	with open(indir+picklist,'wb+') as outfile:
 		writer = csv.writer(outfile)
-		header = ['BIB_ID']
+		header = ['BIB_ID','LINK']
 		writer.writerow(header) 
 		for row in r:
+			bib = str(row[0])
+			url = row[1]
 			writer.writerow(row)
 		
 		with open(logdir+'lastbib.txt','wb+') as lastbib, open(logdir+'bib.log','ab+') as biblog:
-			lastbib.write(str(row[0]))
-			biblog.write(justnow + '\t' + str(row[0])+'\n')
+			lastbib.write(bib)
+			biblog.write(justnow + '\t' + bib +'\n')
 
 
 def make_report(picklist):
@@ -105,7 +177,7 @@ def make_report(picklist):
 	Input is the csv picklist. Output is report with HTTP statuses added.
 	"""
 	try:
-		os.remove(outdir+picklist) # remove output from previous runs
+		os.remove(outdir+picklist) # remove output from previous runs on same day
 	except OSError:
 		pass
 		
@@ -120,14 +192,18 @@ def make_report(picklist):
 		for row in reader:
 			if row[0].isdigit():
 				bibid = row[0]
-				query_elink_index(bibid) # <= check against ELINK_INDEX
+				url = row[1]
+				query_elink_index(bibid,url) # <= check against ELINK_INDEX
 
 
-def query_elink_index(bibid):
+def query_elink_index(bibid,url):
 	"""
 	Query the ELINK_INDEX table
 	"""	
 	thisbib = [] # temp list of URLs per bib id; the same URL can appear in a bib more than once; let's check just once
+
+	#if str(url).decode("utf-8").find(u"\u0332") > 0:
+	#	url = str(url).decode("utf-8").replace(u"\u0332", "") # 'combining low line' character has appeared in urls(!)
 	
 	cached = False
 	con = lite.connect('./db/cache.db')
@@ -138,90 +214,23 @@ def query_elink_index(bibid):
 	dsn = cx_Oracle.makedsn(HOST,PORT,SID)
 	db = cx_Oracle.connect(USER,PASS,dsn)
 		
-	sql = """SELECT RECORD_ID, TITLE_BRIEF, LINK
+	sql = """SELECT RECORD_ID, TITLE_BRIEF
 	FROM
 	ELINK_INDEX
 	LEFT JOIN BIB_TEXT ON ELINK_INDEX.RECORD_ID = BIB_TEXT.BIB_ID
 	WHERE
 	RECORD_TYPE='B'
-	AND (LINK NOT LIKE '%%app.knovel.com%%'
-	AND LINK NOT LIKE '%%arks.princeton.edu%%'
-	AND LINK NOT LIKE '%%assets.cambridge.org%%'
-	AND LINK NOT LIKE '%%bvbr.bib-bvb.de%%'
-	AND LINK NOT LIKE '%%catalog.hathitrust.org%%'
-	AND LINK NOT LIKE '%%catalogue.bnf.fr%%'
-	AND LINK NOT LIKE '%%catdir.loc.gov%%'
-	AND LINK NOT LIKE '%%congressional.proquest.com%%'
-	AND LINK NOT LIKE '%%datapages.com%%'
-	AND LINK NOT LIKE '%%deposit.d-nb.de%%'
-	AND LINK NOT LIKE '%%digital.lib.cuhk.edu.hk%%'
-	AND LINK NOT LIKE '%%d-nb.info%%'
-	AND LINK NOT LIKE '%%dss.princeton.edu%%'
-	AND LINK NOT LIKE '%%dx.doi.org%%'
-	AND LINK NOT LIKE '%%eebo.chadwyck.com%%'
-	AND LINK NOT LIKE '%%elibrary.worldbank.org%%'
-	AND LINK NOT LIKE '%%find.galegroup.com%%'
-	AND LINK NOT LIKE '%%galenet.galegroup.com%%'
-	AND LINK NOT LIKE '%%gateway.proquest.com%%'
-	AND LINK NOT LIKE '%%getit.princeton.edu%%'
-	AND LINK NOT LIKE '%%gisserver.princeton.edu%%'
-	AND LINK NOT LIKE '%%hdl.handle.net%%'
-	AND LINK NOT LIKE '%%ieeexplore.ieee.org%%'
-	AND LINK NOT LIKE '%%ilibri.casalini.it%%'
-	AND LINK NOT LIKE '%%knowledge.sagepub.com%%'
-	AND LINK NOT LIKE '%%latin.packhum.org%%'
-	AND LINK NOT LIKE '%%library.princeton.edu%%'
-	AND LINK NOT LIKE '%%lib-terminal.princeton.edu%%'
-	AND LINK NOT LIKE '%%libweb.princeton.edu%%'
-	AND LINK NOT LIKE '%%libweb2.princeton.edu%%'
-	AND LINK NOT LIKE '%%libweb5.princeton.edu%%'
-	AND LINK NOT LIKE '%%marc.crcnetbase.com%%'
-	AND LINK NOT LIKE '%%name.umdl.umich.edu%%'
-	AND LINK NOT LIKE '%%ncco.galegroup.com%%'
-	AND LINK NOT LIKE '%%onlinelibrary.wiley.com%%'
-	AND LINK NOT LIKE '%%opac.newsbank.com%%'
-	AND LINK NOT LIKE '%%pao.chadwyck.com%%'
-	AND LINK NOT LIKE '%%princeton.lib.overdrive.com%%'
-	AND LINK NOT LIKE '%%princeton.naxosmusiclibrary.com%%'
-	AND LINK NOT LIKE '%%proquest.safaribooksonline.com%%'
-	AND LINK NOT LIKE '%%purl.access.gpo.gov%%'
-	AND LINK NOT LIKE '%%purl.fdlp.gov%%'
-	AND LINK NOT LIKE '%%roperweb.ropercenter.uconn.edu%%'
-	AND LINK NOT LIKE '%%scitation.aip.org%%'
-	AND LINK NOT LIKE '%%search.ebscohost.com%%'
-	AND LINK NOT LIKE '%%site.ebrary.com%%'
-	AND LINK NOT LIKE '%%static.harpercollins.com%%'
-	AND LINK NOT LIKE '%%wws-roxen.princeton.edu%%'
-	AND LINK NOT LIKE '%%www.aspresolver.com%%'
-	AND LINK NOT LIKE '%%www.british-history.ac.uk%%'
-	AND LINK NOT LIKE '%%www.elibrary.imf.org%%'
-	AND LINK NOT LIKE '%%www.icpsr.umich.edu%%'
-	AND LINK NOT LIKE '%%www.ilibri.casalini.it%%'
-	AND LINK NOT LIKE '%%www.jstor.org%%'
-	AND LINK NOT LIKE '%%www.loc.gov%%'
-	AND LINK NOT LIKE '%%www.nap.com%%'
-	AND LINK NOT LIKE '%%www.netread.com%%'
-	AND LINK NOT LIKE '%%www.pppl.gov%%'
-	AND LINK NOT LIKE '%%www.sciencedirect.com%%'
-	AND LINK NOT LIKE '%%www.slavery.amdigital.co.uk%%'
-	AND LINK NOT LIKE '%%www.sourceoecd.org%%'
-	AND LINK NOT LIKE '%%www.springerlink.com%%'
-	AND LINK NOT LIKE '%%www.springerprotocols.com%%'
-	AND LINK NOT LIKE '%%www-wds.worldbank.org%%'
-	AND LINK NOT LIKE '%%dramonline.org%%'
-	AND LINK NOT LIKE '%%blackwellreference.com%%'
-	AND LINK NOT LIKE '%%ark.cdlib.org%%')
-	AND LINK_SUBTYPE like '%%HTTP%%'
-	AND RECORD_ID = '%s'"""
+	AND RECORD_ID = '%s'
+	AND LINK = '%s'"""
 
 	c = db.cursor()
-	c.execute(sql % bibid)
+	c.execute(sql % (bibid,url))
 	
 	for row in c:
-		bib = row[0]
+		bib = int(row[0])
 		ti = row[1]
-		url = row[2]
-	
+		url = url.decode('utf-8')
+
 		if url not in thisbib: # if url not already checked just now, under the same bib id...
 			if ignore_cache==False: # if indeed checking the cache...
 				
@@ -276,7 +285,7 @@ def query_elink_index(bibid):
 			
 			with open(outdir+picklist,'ab+') as outfile:
 				if resp != 200 and redirst != 200: # just report out the problems
-					writer = csv.writer(outfile)
+					writer = unicodecsv.writer(outfile, encoding='utf-8')
 					writer.writerow(newrow)
 		
 	thisbib = []
@@ -352,6 +361,7 @@ def make_pie():
 	Generate simple pie chart
 	"""
 	htmlfile = open('./html/elink.html','wb+')
+	
 	con = lite.connect('./db/cache.db')
 	with con:
 		con.row_factory = lite.Row
@@ -420,8 +430,8 @@ def make_pie():
 if __name__ == "__main__": 
 	parser = argparse.ArgumentParser(description='Check ELINK_INDEX tables against list of BIB_IDs')
 	parser.add_argument('-f','--filename',required=False,dest="picklist",help="Optional. The name of picklist file, e.g. 'bibs_20150415.csv' (assumed to be in ./in). Can just be a list of BIB_IDs.")
-	parser.add_argument("-C", "--ignore-cache",required=False, dest="ignore_cache", action="store_true", help="Optionally ignore the cache to test all URLs freshly.")
-	parser.add_argument("-c", "--copy",required=False, default=True, dest="copy_report", action="store_false", help="Copy the resulting report to the share specified in cfg file.")
+	parser.add_argument("-C", "--ignore-cache",required=False, default=False,dest="ignore_cache", action="store_true", help="Optionally ignore the cache to test all URLs freshly.")
+	parser.add_argument("-c", "--copy",required=False, default=False, dest="copy_report", action="store_true", help="Copy the resulting report to the share specified in cfg file.")
 	parser.add_argument("-v", "--verbose",required=False, default=False, dest="verbose", action="store_true", help="Print out bibs and urls as it runs.")
 	parser.add_argument("-n", "--number",required=False, default=10000, dest="numorecs", help="Number of records to search")
 	args = vars(parser.parse_args())
