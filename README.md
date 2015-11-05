@@ -14,6 +14,7 @@ For more: `python check.py -h`
 * [cx_Oracle](http://cx-oracle.sourceforge.net/) ([installation](https://gist.github.com/kimus/10012910) is a bit involved)
 * [requests](http://docs.python-requests.org/en/latest/user/install/)
 * sqlite3 `sudo apt-get install sqlite3 libsqlite3-dev`
+* unicodecsv `pip install unicodecsv`
 
 #### Note
 Theoretically, link checking could be done with Catjobs 9 & 10 ("HTTP Verification jobs"), though we haven't used them (initial testing was discouraging). Within the Voyager documentation, see Technical.pdf and Reporter.pdf (2-16, 2-23).
