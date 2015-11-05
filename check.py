@@ -25,6 +25,7 @@ import ConfigParser
 import csv
 import cx_Oracle
 import glob
+import logging
 import os
 import requests
 import shutil
@@ -32,6 +33,7 @@ import sqlite3 as lite
 import sys
 import time
 import unicodecsv
+import urllib
 from datetime import date, datetime, timedelta
 
 today = time.strftime('%Y%m%d') # for csv filename
@@ -55,18 +57,30 @@ PORT = config.get('vger', 'port')
 SID = config.get('vger', 'sid')
 HOST = config.get('vger', 'ip')
 
+logging.basicConfig(format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p',filename=logdir+today+'.log',level=logging.INFO)
+# the following two lines disable the default logging of requests.get()
+#logging.getLogger("requests").setLevel(logging.WARNING)
+#logging.getLogger("urllib3").setLevel(logging.WARNING)
 
 #===============================================================================
 # defs
 #===============================================================================
 def main(picklist):
 	print('-' * 50)
+	print('starting...')
+	logging.info('='*75)
+	logging.info('picklist: '+ picklist)
+	logging.info('links to check: %s' % numtocheck)
+	logging.info('max age: %s' % maxage)
+	logging.info('sample per host: %s' % sample)
 	make_report(picklist)
 	if copy_report == True:
 		mv_outfiles()
 	make_pie()
 	print('all done!')
 	print('-' * 50)
+	logging.info('done')
+	logging.info('='*75)
 
 
 def get_bibs(picklist):
@@ -202,14 +216,27 @@ def make_report(picklist):
 				writer = csv.writer(outfile)
 				row = ['bib','title','host','url','status','redirect','redirect_status','last_checked','suppressed'] # the header row
 				writer.writerow(row) 
-		for row in reader:
-			if row[0].isdigit(): # first col should be bib_id and this skips header row if there is one
-				bibid = row[0]
-				url = row[1]
-				host = row[2]
-				query_elink_index(bibid,url,host) # <= check against ELINK_INDEX to get more data and check link if appropriate
-
-
+		try:
+			for row in reader:
+				if row[0].isdigit(): # first col should be bib_id and this skips header row if there is one
+					bibid = row[0]
+					url = row[1]
+					host = row[2]
+					q = query_elink_index(bibid,url,host) # <= check against ELINK_INDEX to get more data and check link if appropriate
+					if q is None:
+						continue
+		except:
+			e = sys.exc_info()
+			logging.info('problem: %s %s' % (e[:2]))
+		with open('./temp/count.txt','rb') as countfile:
+			count = countfile.read().rstrip('\n')
+			logging.info('checked: %s' % count)
+		with open(outdir+picklist,'rb') as reportfile:
+			for i, line in enumerate(reportfile):
+				pass
+			logging.info('reported (bad): %s' % i)
+			
+				
 def query_elink_index(bibid,url,host):
 	"""
 	Query the ELINK_INDEX table
@@ -217,7 +244,6 @@ def query_elink_index(bibid,url,host):
 	cached = False
 	check_date = None
 	con = lite.connect(DB)
-	count = 0
 	last_checked = ''
 	redir = ''
 	redirst = ''
@@ -250,7 +276,7 @@ def query_elink_index(bibid,url,host):
 			count = 0
 		else:
 			count = int(count)
-
+	
 	if count < int(numtocheck):
 		for row in c:
 			bib = row[0]
@@ -277,7 +303,7 @@ def query_elink_index(bibid,url,host):
 					date2 = datetime.strptime(todaydb,'%Y-%m-%d %H:%M:%S')
 					date1 = datetime.strptime(str(check_date),'%Y-%m-%d %H:%M:%S')
 					datediff = abs((date2 - date1).days)
-				print(datediff, maxage)
+
 				if cached == True and datediff < maxage: # don't bother to re-check unless it was last checked before the 'maxage' date
 					resp = response # from cache
 					redir = redirect_url # from cache
@@ -322,16 +348,12 @@ def query_elink_index(bibid,url,host):
 					writer = unicodecsv.writer(outfile, encoding='utf-8')
 					writer.writerow(newrow)
 	else:
-		sys.exit('done. checked ' + str(count) + ' links y\'all!')	
+		return None
 
 	with open('temp/count.txt','wb+') as countfile:
 		countfile.write(str(count))
 
-	if con:
-		con.close() # sqlite (should already be closed in 'with' blocks, but just in case)
-	c.close() # oracle
 	
-
 def get_reponse(url):
 	"""
 	Get HTTP response for each link
@@ -386,7 +408,8 @@ def mv_outfiles():
 	for f in glob.glob(r''+outdir+picklist):
 		try:
 			shutil.copyfile(f,dest+newname)
-			print("copied %s to %s" % (f, dest+newname))
+			msg = "copied %s to %s" % (f, dest+newname)
+			logging.info(msg)
 		except:
 			print("problem with moving files: %s" % sys.exc_info()[1])
 			pass
@@ -461,6 +484,7 @@ def make_pie():
 			rownum += 1
 	htmlfile.write(footer)
 	con.close()
+	logging.info('wrote elink.html')
 
 
 #===============================================================================
