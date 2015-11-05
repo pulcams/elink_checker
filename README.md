@@ -10,6 +10,9 @@ Optionally, read in a file with bib_ids in the first field:
  
 For more: `python check.py -h`
 
+To (re)create sqlite db: `CREATE TABLE bibs(bib INT, url TEXT, status TEXT, redirect TEXT, redirect_status TEXT, last_checked DATE, PRIMARY KEY (bib, url));`
+
+
 #### Requires
 * [cx_Oracle](http://cx-oracle.sourceforge.net/) ([installation](https://gist.github.com/kimus/10012910) is a bit involved)
 * [requests](http://docs.python-requests.org/en/latest/user/install/)
