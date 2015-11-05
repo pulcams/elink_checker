@@ -4,7 +4,7 @@
 Check the status of links within Voyager bib records.
 Fill in check.cfg, then run the script like this (the usual way):
 
-`python check.py -v`
+`python check.py -v -n 10`
 
 ...or use a list of bibs (can be used when re-running over a previous list)... 
 
@@ -32,11 +32,13 @@ import sqlite3 as lite
 import sys
 import time
 import unicodecsv
-
-#TODO: get lastbib from bib.log (rather than sep file)
+from datetime import date, datetime, timedelta
 
 today = time.strftime('%Y%m%d') # for csv filename
+todaydb = time.strftime('%Y-%m-%d %H:%M:%S') # date for db
 justnow = time.strftime("%Y-%m-%d %I:%M:%S %p") # for log
+
+host_list = []
 
 # parse configuration file check.cfg
 config = ConfigParser.RawConfigParser()
@@ -45,43 +47,43 @@ indir = config.get('env', 'indir')
 outdir = config.get('env', 'outdir')
 logdir = config.get('env', 'logdir')
 share = config.get('env','share')
-db = config.get('db','sqlite')
 
+DB = config.get('db','sqlite')
 USER = config.get('vger', 'user')
 PASS = config.get('vger', 'pw')
 PORT = config.get('vger', 'port')
 SID = config.get('vger', 'sid')
 HOST = config.get('vger', 'ip')
 
+
 #===============================================================================
 # defs
 #===============================================================================
 def main(picklist):
-	print('-' * 25)
+	print('-' * 50)
 	make_report(picklist)
 	if copy_report == True:
 		mv_outfiles()
 	make_pie()
 	print('all done!')
+	print('-' * 50)
 
 
 def get_bibs(picklist):
 	"""
-	If no pick-list is given, query Voyager for the full list and generate a pick-list of all bibs
-	"""	
+	If no pick-list is given, query Voyager for the full list
+	"""
+	if verbose:
+		print('hi. running report...')
 	with open(logdir+'lastbib.txt','rb+') as biblist:
 		lastbib = biblist.read()
 		
 	if lastbib is None or lastbib == '\n':
 		lastbib = '0'
 
-	# this query limits the number of urls per host (see sample_count variable)
-	query = """SELECT * FROM (
-	SELECT RECORD_ID,LINK,URL_HOST, ROW_NUMBER()
-	OVER (
-		PARTITION BY URL_HOST ORDER BY URL_HOST
-	) SampleCount FROM ELINK_INDEX 
-			WHERE (
+	query = """SELECT RECORD_ID, LINK, URL_HOST
+			FROM ELINK_INDEX 
+			WHERE
 			RECORD_TYPE='B'
 			AND (LINK NOT LIKE '%%app.knovel.com%%'
 			AND LINK NOT LIKE '%%arks.princeton.edu%%'
@@ -150,11 +152,8 @@ def get_bibs(picklist):
 			AND LINK NOT LIKE '%%dramonline.org%%'
 			AND LINK NOT LIKE '%%blackwellreference.com%%'
 			AND LINK NOT LIKE '%%ark.cdlib.org%%')
-			AND LINK_SUBTYPE like '%%HTTP%%'))
-			WHERE SampleCount <= %s
-			AND RECORD_ID > %s
-			AND ROWNUM <= %s
-			ORDER BY record_id""" % (sample_count,lastbib, numorecs)
+			AND LINK_SUBTYPE like '%%HTTP%%'
+			ORDER BY record_id"""
 
 	dsn = cx_Oracle.makedsn(HOST,PORT,SID)
 	oradb = cx_Oracle.connect(USER,PASS,dsn)
@@ -170,59 +169,68 @@ def get_bibs(picklist):
 		writer = csv.writer(outfile)
 		header = ['BIB_ID','LINK','URL_HOST']
 		writer.writerow(header) 
+		c = 0
 		for row in r:
-			bib = str(row[0])
+			bib = str(row[0]) # to put in log files below
 			writer.writerow(row)
+			c += 1
 		
-		with open(logdir+'lastbib.txt','wb+') as lastbib, open(logdir+'bib.log','ab+') as biblog:
+		with open(logdir+'lastbib.txt','wb+') as lastbib, open(logdir+'bib.log','ab+') as biblog, open(logdir+'elink.log','ab+') as elinklog:
 			lastbib.write(bib)
 			biblog.write(justnow + '\t' + bib +'\n')
+			elinklog.write(justnow+'\ntotal bibs: '+str(c)+'\n')
+	if verbose:
+		print('wrote out report')
 
 
 def make_report(picklist):
 	"""
 	Input is the csv picklist. Output is report with HTTP statuses added.
-	"""
+	"""	
 	try:
-		os.rename(outdir+picklist, outdir+picklist + '.bak') # remove output from previous runs on same day
+		os.rename(outdir+picklist, outdir+picklist + '.bak') # back up output from previous runs on same day
 	except OSError:
 		pass
-		
+
+	with open('./temp/count.txt','wb+') as countfile:
+		countfile.write(str('0'))
+
 	with open(indir+picklist,'rb+') as csvfile:
 		reader = csv.reader(csvfile, delimiter=',', quotechar='"')
-		#firstline = reader.next() # skip header row
 		
 		with open(outdir+picklist,'ab+') as outfile:
 				writer = csv.writer(outfile)
-				row = ['bib','title','url','status','redirect','redirect_status','last_checked','suppressed'] # the header row
+				row = ['bib','title','host','url','status','redirect','redirect_status','last_checked','suppressed'] # the header row
 				writer.writerow(row) 
 		for row in reader:
-			if row[0].isdigit():
+			if row[0].isdigit(): # first col should be bib_id and this skips header row if there is one
 				bibid = row[0]
 				url = row[1]
-				query_elink_index(bibid,url) # <= check against ELINK_INDEX
+				host = row[2]
+				query_elink_index(bibid,url,host) # <= check against ELINK_INDEX to get more data and check link if appropriate
 
 
-def query_elink_index(bibid,url):
+def query_elink_index(bibid,url,host):
 	"""
 	Query the ELINK_INDEX table
-	"""	
-	thisbib = [] # temp list of URLs per bib id; the same URL can appear in a bib more than once; let's check just once
-
-	#if str(url).decode("utf-8").find(u"\u0332") > 0:
-	#	url = str(url).decode("utf-8").replace(u"\u0332", "") # 'combining low line' character has appeared in urls(!)
-	
+	"""
 	cached = False
-	con = lite.connect('./db/cache.db')
+	check_date = None
+	con = lite.connect(DB)
+	count = 0
+	last_checked = ''
+	redir = ''
+	redirst = ''
+	resp = ''
 	response = ''
 	redirect_url = ''
 	redirect_status = ''
 	url = url.replace("'","''") # any single quotes need to be doubled
-
+	
 	dsn = cx_Oracle.makedsn(HOST,PORT,SID)
 	db = cx_Oracle.connect(USER,PASS,dsn)
 		
-	sql = """SELECT ELINK_INDEX.RECORD_ID, BIB_TEXT.TITLE_BRIEF, BIB_MASTER.SUPPRESS_IN_OPAC
+	sql = """SELECT ELINK_INDEX.RECORD_ID, SUBSTR(BIB_TEXT.TITLE_BRIEF,1,25), BIB_MASTER.SUPPRESS_IN_OPAC
 	FROM
 	ELINK_INDEX
 	LEFT JOIN BIB_TEXT ON ELINK_INDEX.RECORD_ID = BIB_TEXT.BIB_ID
@@ -235,16 +243,21 @@ def query_elink_index(bibid,url):
 
 	c = db.cursor()
 	c.execute(sql % (bibid,url))
-	
-	for row in c:
-		bib = int(row[0])
-		ti = row[1]
-		url = url.decode('utf-8')
-		suppressed = row[2]
 
-		if url not in thisbib: # if url not already checked just now, under the same bib id...
-			if ignore_cache==False: # if indeed checking the cache...
-				
+	with open('./temp/count.txt','rb+') as countfile:
+		count = countfile.read().rstrip('\n')
+		if count == '':
+			count = 0
+		else:
+			count = int(count)
+
+	if count < int(numtocheck):
+		for row in c:
+			bib = row[0]
+			ti = row[1]
+			url = url.decode('utf-8')
+			suppressed = row[2]
+			if ignore_cache==False: # if checking the cache...	
 				with con:
 					con.row_factory = lite.Row
 					cur = con.cursor()
@@ -258,53 +271,66 @@ def query_elink_index(bibid,url):
 							response = row['status']
 							redirect_status = row['redirect_status']
 							check_date = row['last_checked']
-					
-				# if the URL's in the cache, status was 200, and it was already checked today, just copy values from cache	
-				if cached == True and (response == 200 or redirect_status == 200) and check_date == todaydb:
-					resp = response
-					redir = redirect_url
-					redirst = redirect_status
-					last_checked = check_date
-				else:
-					resp,redir,redirst = get_reponse(url) # ping
-					last_checked = time.strftime('%Y-%m-%d %H:%M:%S')
-			else: # if ignoring cache (for some good reason?)
-				resp,redir,redirst = get_reponse(url)
-				last_checked = time.strftime('%Y-%m-%d %H:%M:%S')
-				
-			if 'requests.exceptions.MissingSchema' in str(resp): # TODO: use try except
-				resp = 'bad url'
-				
-			# cache
-			with con:
-				cur = con.cursor() 
-				if cached == False:
-					# insert new url and statuses into db...
-					newurl = (bib, url, str(resp), redir, redirst, last_checked)
-					cur.executemany("INSERT INTO bibs VALUES(?, ?, ?, ?, ?,?)", (newurl,))
-				else:
-					# or, if it was in the cache from a previous run...
-					updateurl = (last_checked, bib, url)
-					cur.executemany("UPDATE bibs SET last_checked=? WHERE bib=? and url=?", (updateurl,))
-			
-			thisbib.append(url)
+							
+				# get number of days since bib was last checked
+				if cached == True and check_date is not None:
+					date2 = datetime.strptime(todaydb,'%Y-%m-%d %H:%M:%S')
+					date1 = datetime.strptime(str(check_date),'%Y-%m-%d %H:%M:%S')
+					datediff = abs((date2 - date1).days)
+				print(datediff, maxage)
+				if cached == True and datediff < maxage: # don't bother to re-check unless it was last checked before the 'maxage' date
+					resp = response # from cache
+					redir = redirect_url # from cache
+					redirst = redirect_status # from cache
+					last_checked = check_date # from cache
+				else: # TODO refactor
+					if host_list.count(host) < int(sample): # <= if haven't checked `sample` recs per this host
+						resp,redir,redirst = get_reponse(url) # <= check link
+						host_list.append(host)
+						last_checked = time.strftime('%Y-%m-%d %H:%M:%S')
+						count += 1
 						
-			newrow = [bib,ti,url,resp,redir,redirst,last_checked]
+			else: # if ignoring cache
+				if host_list.count(host) < int(sample):
+					resp,redir,redirst = get_reponse(url) # <= check link
+					host_list.append(host)
+					last_checked = time.strftime('%Y-%m-%d %H:%M:%S')
+					count += 1
+					
+			if resp and 'requests.exceptions.MissingSchema' in str(resp): # TODO: try except
+				resp = 'bad url'
+
+			if last_checked != '' and ignore_cache == False:
+				with con:
+					cur = con.cursor() 
+					if cached == False:
+						# insert new url and statuses into db...
+						newurl = (bib, str(url), str(resp), redir, redirst, last_checked)
+						cur.executemany("INSERT INTO bibs VALUES(?, ?, ?, ?, ?, ?)", (newurl,))
+					else:
+						# or, if it was in the cache from a previous run but was from before the max date...
+						updateurl = (last_checked, bib, url)
+						cur.executemany("UPDATE bibs SET last_checked=? WHERE bib=? and url=?", (updateurl,))
+								
+			newrow = [bib,ti,host,url,resp,redir,redirst,last_checked,cached]
 			
 			if verbose:
-				print("%s, %s, %s, %s, %s, %s, %s" % (bib,url,resp,redir,redirst,last_checked, suppressed))
+				print("%s checked -- %s, %s, %s, %s, %s, %s, %s, %s, %s" % (count, bib,host,url,resp,redir,redirst,last_checked,suppressed,cached))
 			
 			with open(outdir+picklist,'ab+') as outfile:
-				if resp != 200 and redirst != 200: # just report out the problems
+				if resp != 200 and redirst != 200 and last_checked == todaydb: # just report out the fresh problems
 					writer = unicodecsv.writer(outfile, encoding='utf-8')
 					writer.writerow(newrow)
-		
-	thisbib = []
+	else:
+		sys.exit('done. checked ' + str(count) + ' links y\'all!')	
+
+	with open('temp/count.txt','wb+') as countfile:
+		countfile.write(str(count))
 
 	if con:
 		con.close() # sqlite (should already be closed in 'with' blocks, but just in case)
 	c.close() # oracle
-
+	
 
 def get_reponse(url):
 	"""
@@ -435,27 +461,31 @@ def make_pie():
 			rownum += 1
 	htmlfile.write(footer)
 	con.close()
-   
-   
+
+
+#===============================================================================
+# __main__
+#===============================================================================
 if __name__ == "__main__": 
 	parser = argparse.ArgumentParser(description='Check ELINK_INDEX tables against list of BIB_IDs')
 	parser.add_argument('-f','--filename',required=False,dest="picklist",help="Optional. The name of picklist file, e.g. 'bibs_20150415.csv' (assumed to be in ./in). Can just be a list of BIB_IDs.")
 	parser.add_argument("-C", "--ignore-cache",required=False, default=False,dest="ignore_cache", action="store_true", help="Optionally ignore the cache to test all URLs freshly.")
 	parser.add_argument("-c", "--copy",required=False, default=False, dest="copy_report", action="store_true", help="Copy the resulting report to the share specified in cfg file.")
 	parser.add_argument("-v", "--verbose",required=False, default=False, dest="verbose", action="store_true", help="Print out bibs and urls as it runs.")
-	parser.add_argument("-n", "--number",required=False, default=10000, dest="numorecs", help="Number of records to search")
+	parser.add_argument("-n", "--number",required=False, default=1000, dest="numtocheck", help="Number of records to search")
 	parser.add_argument("-s", "--sample",required=False, default=4, dest="sample", help="Max number of urls per domain")
+	parser.add_argument('-a','--age',dest="maxage",help="Max days after which to re-check WorldCat",required=False, default=30)
 	args = vars(parser.parse_args())
-	picklist = args['picklist'] # the list of bibs
-	ignore_cache = args['ignore_cache']
 	copy_report = args['copy_report']
-	verbose = args['verbose']
-	numorecs = args['numorecs']
+	ignore_cache = args['ignore_cache']
+	maxage = int(args['maxage'])
+	numtocheck = args['numtocheck']
+	picklist = args['picklist'] # the list of bibs
 	sample = args['sample']
+	verbose = args['verbose']
 	
-	if not picklist: # if no file given...
+	if not picklist: # if no file given, run query against vger...
 		picklist = 'links_to_check_'+today+'.csv'
 		get_bibs(picklist) # generate a picklist, starting from the bib id in ./log/lastbib.txt
 
 	main(picklist)
-	
