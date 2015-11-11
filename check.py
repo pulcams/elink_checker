@@ -27,6 +27,7 @@ import cx_Oracle
 import glob
 import logging
 import os
+import re
 import requests
 import shutil
 import sqlite3 as lite
@@ -89,11 +90,11 @@ def get_bibs(picklist):
 	"""
 	if verbose:
 		print('hi. running report...')
-	with open(logdir+'lastbib.txt','rb+') as biblist:
-		lastbib = biblist.read()
+	#with open(logdir+'lastbib.txt','rb+') as biblist:
+	#	lastbib = biblist.read()
 		
-	if lastbib is None or lastbib == '\n':
-		lastbib = '0'
+	#if lastbib is None or lastbib == '\n':
+	#	lastbib = '0'
 
 	query = """SELECT RECORD_ID, LINK, URL_HOST
 			FROM ELINK_INDEX 
@@ -189,10 +190,11 @@ def get_bibs(picklist):
 			writer.writerow(row)
 			c += 1
 		
-		with open(logdir+'lastbib.txt','wb+') as lastbib, open(logdir+'bib.log','ab+') as biblog, open(logdir+'elink.log','ab+') as elinklog:
-			lastbib.write(bib)
-			biblog.write(justnow + '\t' + bib +'\n')
-			elinklog.write(justnow+'\ntotal bibs: '+str(c)+'\n')
+		#with open(logdir+'lastbib.txt','wb+') as lastbib, open(logdir+'bib.log','ab+') as biblog, open(logdir+'elink.log','ab+') as elinklog:
+		with open(logdir+'elink.log','ab+') as elinklog:
+			#biblog.write(justnow + '\t' + bib +'\n')
+			elinklog.write(justnow+'\ntotal bibs in ELINK_INDEX: '+str(c)+'\n')
+	logging.info('wrote out report')
 	if verbose:
 		print('wrote out report')
 
@@ -212,10 +214,14 @@ def make_report(picklist):
 	with open(indir+picklist,'rb+') as csvfile:
 		reader = csv.reader(csvfile, delimiter=',', quotechar='"')
 		
-		with open(outdir+picklist,'ab+') as outfile:
+		with open(outdir+picklist,'ab+') as outfile, open(logdir+'details_'+today+'.csv','wb+') as reasonsfile:
 				writer = csv.writer(outfile)
-				row = ['bib','title','host','url','status','redirect','redirect_status','last_checked','suppressed'] # the header row
-				writer.writerow(row) 
+				row = ['bib','title','host','url','status','redirect','redirect_status','last_checked','suppressed','was_in_cache','pinged','f040','f945'] # the header row
+				writer.writerow(row)
+				detailsrow = ['bib','host','url','resp','redir','redirst','last_checked','suppressed','cached', 'pinged','count']
+				detailswriter = csv.writer(reasonsfile)
+				row.append('check_count')
+				detailswriter.writerow(detailsrow)
 		try:
 			for row in reader:
 				if row[0].isdigit(): # first col should be bib_id and this skips header row if there is one
@@ -223,8 +229,8 @@ def make_report(picklist):
 					url = row[1]
 					host = row[2]
 					q = query_elink_index(bibid,url,host) # <= check against ELINK_INDEX to get more data and check link if appropriate
-					if q is None:
-						continue
+					if q == 'done':
+						return
 		except:
 			e = sys.exc_info()
 			logging.info('problem: %s %s' % (e[:2]))
@@ -245,6 +251,7 @@ def query_elink_index(bibid,url,host):
 	check_date = None
 	con = lite.connect(DB)
 	last_checked = ''
+	pinged = 'n'
 	redir = ''
 	redirst = ''
 	resp = ''
@@ -256,7 +263,7 @@ def query_elink_index(bibid,url,host):
 	dsn = cx_Oracle.makedsn(HOST,PORT,SID)
 	db = cx_Oracle.connect(USER,PASS,dsn)
 		
-	sql = """SELECT ELINK_INDEX.RECORD_ID, SUBSTR(BIB_TEXT.TITLE_BRIEF,1,25), BIB_MASTER.SUPPRESS_IN_OPAC
+	sql = """SELECT ELINK_INDEX.RECORD_ID, SUBSTR(BIB_TEXT.TITLE_BRIEF,1,25), BIB_MASTER.SUPPRESS_IN_OPAC, princetondb.GETBIBSUBFIELD(BIB_MASTER.BIB_ID, '945','a') as f945a, princetondb.GETALLBIBTAG(BIB_MASTER.BIB_ID, '040') as f040
 	FROM
 	ELINK_INDEX
 	LEFT JOIN BIB_TEXT ON ELINK_INDEX.RECORD_ID = BIB_TEXT.BIB_ID
@@ -283,6 +290,9 @@ def query_elink_index(bibid,url,host):
 			ti = row[1]
 			url = url.decode('utf-8')
 			suppressed = row[2]
+			gov945 = 'govdoc' if re.search('DOCS',str(row[3])) else ''
+			gov040 = 'govdoc' if re.search('MvI',str(row[4]),re.IGNORECASE) else '' # TODO return 'govdoc'
+				
 			if ignore_cache==False: # if checking the cache...	
 				with con:
 					con.row_factory = lite.Row
@@ -309,12 +319,13 @@ def query_elink_index(bibid,url,host):
 					redir = redirect_url # from cache
 					redirst = redirect_status # from cache
 					last_checked = check_date # from cache
-				else: # TODO refactor
+				else:
 					if host_list.count(host) < int(sample): # <= if haven't checked `sample` recs per this host
 						resp,redir,redirst = get_reponse(url) # <= check link
 						host_list.append(host)
 						last_checked = time.strftime('%Y-%m-%d %H:%M:%S')
 						count += 1
+						pinged = 'y'
 						
 			else: # if ignoring cache
 				if host_list.count(host) < int(sample):
@@ -322,6 +333,7 @@ def query_elink_index(bibid,url,host):
 					host_list.append(host)
 					last_checked = time.strftime('%Y-%m-%d %H:%M:%S')
 					count += 1
+					pinged = 'y'
 					
 			if resp and 'requests.exceptions.MissingSchema' in str(resp): # TODO: try except
 				resp = 'bad url'
@@ -338,17 +350,23 @@ def query_elink_index(bibid,url,host):
 						updateurl = (last_checked, bib, url)
 						cur.executemany("UPDATE bibs SET last_checked=? WHERE bib=? and url=?", (updateurl,))
 								
-			newrow = [bib,ti,host,url,resp,redir,redirst,last_checked,cached]
+			newrow = [bib,ti,host,url,resp,redir,redirst,last_checked,cached,gov040,gov945]
 			
 			if verbose:
-				print("%s checked -- %s, %s, %s, %s, %s, %s, %s, %s, %s" % (count, bib,host,url,resp,redir,redirst,last_checked,suppressed,cached))
+				print("%s checked -- %s, %s, %s, %s, %s, %s, %s, %s, %s, %s" % (count,bib,host,url,resp,redir,redirst,last_checked,suppressed,cached, pinged))
+				
+			# this may just be a temporary file to make sure the counts are correct (per host and per run)
+			with open(logdir+'details_'+today+'.csv','ab+') as detailsfile:
+				details = [bib,host,url,resp,redir,redirst,last_checked,suppressed,cached, pinged,count]
+				detailswriter = unicodecsv.writer(detailsfile, encoding='utf-8')
+				detailswriter.writerow(details)
 			
 			with open(outdir+picklist,'ab+') as outfile:
 				if resp != 200 and redirst != 200 and last_checked == todaydb: # just report out the fresh problems
 					writer = unicodecsv.writer(outfile, encoding='utf-8')
 					writer.writerow(newrow)
 	else:
-		return None
+		return 'done'
 
 	with open('temp/count.txt','wb+') as countfile:
 		countfile.write(str(count))
