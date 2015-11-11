@@ -365,11 +365,25 @@ def query_elink_index(bibid,url,host):
 				if resp != 200 and redirst != 200 and last_checked == todaydb: # just report out the fresh problems
 					writer = unicodecsv.writer(outfile, encoding='utf-8')
 					writer.writerow(newrow)
+			outlength = check_file_len(outdir+picklist)
+			if outlength >= seerslimit:
+				return 'done'
 	else:
 		return 'done'
 
 	with open('temp/count.txt','wb+') as countfile:
 		countfile.write(str(count))
+
+
+def check_file_len(fname):
+	"""
+	Check the length of the output file, in case we want to set limits on it (e.g. 100 per week)
+	Nicked from GH: http://stackoverflow.com/questions/845058/how-to-get-line-count-cheaply-in-python
+	"""
+	with open(fname) as f:
+		for i, l in enumerate(f):
+			pass
+	return i + 1
 
 	
 def get_reponse(url):
@@ -518,12 +532,15 @@ if __name__ == "__main__":
 	parser.add_argument("-s", "--sample",required=False, default=4, dest="sample", help="Max number of urls per domain")
 	parser.add_argument('-a','--age',dest="maxage",help="Max days after which to re-check WorldCat",required=False, default=30)
 	args = vars(parser.parse_args())
+	parser.add_argument("-l", "--limit",required=False, default=100, dest="seerslimit", help="Max number of urls for the SeERs unit to check")
+
 	copy_report = args['copy_report']
 	ignore_cache = args['ignore_cache']
 	maxage = int(args['maxage'])
 	numtocheck = args['numtocheck']
 	picklist = args['picklist'] # the list of bibs
 	sample = args['sample']
+	seerslimit = args['seerslimit']
 	verbose = args['verbose']
 	
 	if not picklist: # if no file given, run query against vger...
