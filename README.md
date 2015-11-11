@@ -2,7 +2,7 @@
 
 We're methodically checking the status of links within our Voyager bib records.
 
-Fill in check.cfg, then run:
+Fill in check.cfg, then run, for example:
  `python check.py -v`
  
 Optionally, read in a file with bib_ids in the first field:
@@ -10,7 +10,7 @@ Optionally, read in a file with bib_ids in the first field:
  
 For more: `python check.py -h`
 
-To (re)create sqlite db: `CREATE TABLE bibs(bib INT, url TEXT, status TEXT, redirect TEXT, redirect_status TEXT, last_checked DATE, PRIMARY KEY (bib, url));`
+To (re)create sqlite db (cache): `CREATE TABLE bibs(bib INT, url TEXT, status TEXT, redirect TEXT, redirect_status TEXT, last_checked DATE, PRIMARY KEY (bib, url));`
 
 
 #### Requires
