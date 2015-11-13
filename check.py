@@ -69,7 +69,6 @@ logging.basicConfig(format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S
 def main(picklist):
 	print('-' * 50)
 	print('starting...')
-	logging.info('='*75)
 	logging.info('picklist: '+ picklist)
 	logging.info('links to check: %s' % numtocheck)
 	logging.info('max problem links: %s' % seerslimit)
@@ -186,9 +185,7 @@ def get_bibs(picklist):
 			writer.writerow(row)
 			c += 1
 		
-		with open(logdir+'elink.log','ab+') as elinklog:
-			elinklog.write(justnow+'\ntotal bibs in ELINK_INDEX: '+str(c)+'\n')
-	logging.info('wrote out report')
+	logging.info('bibs in ELINK_INDEX: %s' % str(c))
 	if verbose:
 		print('wrote out report')
 
@@ -212,7 +209,7 @@ def make_report(picklist):
 				writer = csv.writer(outfile)
 				row = ['bib','title','host','url','status','redirect','redirect_status','last_checked','last_check_in_days','suppressed','was_in_cache','pinged','f040','f945'] # the header row
 				writer.writerow(row)
-				detailsrow = ['bib','host','url','resp','redir','redirst','last_checked','suppressed','cached', 'pinged','count']
+				detailsrow = ['bib','host','url','resp','redir','redirst','last_checked','cached', 'pinged','count']
 				detailswriter = csv.writer(reasonsfile)
 				row.append('check_count')
 				detailswriter.writerow(detailsrow)
@@ -352,7 +349,7 @@ def query_elink_index(bibid,url,host):
 				
 			# this may just be a temporary file to make sure the counts are correct (per host and per run)
 			with open(logdir+'details_'+today+'.csv','ab+') as detailsfile:
-				details = [bib,host,url,resp,redir,redirst,last_checked,datediff,suppressed,cached,pinged,count]
+				details = [bib,host,url,resp,redir,redirst,last_checked,datediff,cached,pinged,count]
 				detailswriter = unicodecsv.writer(detailsfile, encoding='utf-8')
 				detailswriter.writerow(details)
 			
@@ -536,7 +533,8 @@ if __name__ == "__main__":
 	sample = args['sample']
 	seerslimit = args['seerslimit']
 	verbose = args['verbose']
-	
+
+	logging.info('='*75)
 	if not picklist: # if no file given, run query against vger...
 		picklist = 'links_to_check_'+today+'.csv'
 		get_bibs(picklist) # generate a picklist, starting from the bib id in ./log/lastbib.txt
