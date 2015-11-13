@@ -208,7 +208,7 @@ def make_report(picklist):
 		with open(outdir+picklist,'ab+') as outfile, open(logdir+'details_'+today+'.csv','wb+') as reasonsfile:
 				writer = csv.writer(outfile)
 				row = ['bib','title','host','url','status','redirect','redirect_status','last_checked','last_check_in_days','suppressed','was_in_cache','pinged','f040','f945'] # the header row
-				writer.writerow(row)
+				writer.writerow(row) # <= a file will be generated with a header row even if there were no links to report
 				detailsrow = ['bib','host','url','resp','redir','redirst','last_checked','cached', 'pinged','count']
 				detailswriter = csv.writer(reasonsfile)
 				row.append('check_count')
@@ -359,6 +359,7 @@ def query_elink_index(bibid,url,host):
 					writer.writerow(newrow)
 			outlength = check_file_len(outdir+picklist)
 			if outlength >= seerslimit:
+				logging.info('Quitting after reporting issues (%s)' % seerslimit)
 				return 'done'
 	else:
 		return 'done'
