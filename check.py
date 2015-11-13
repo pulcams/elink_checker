@@ -72,6 +72,7 @@ def main(picklist):
 	logging.info('='*75)
 	logging.info('picklist: '+ picklist)
 	logging.info('links to check: %s' % numtocheck)
+	logging.info('max problem links: %s' % seerslimit)
 	logging.info('max age: %s' % maxage)
 	logging.info('sample per host: %s' % sample)
 	make_report(picklist)
@@ -90,11 +91,6 @@ def get_bibs(picklist):
 	"""
 	if verbose:
 		print('hi. running report...')
-	#with open(logdir+'lastbib.txt','rb+') as biblist:
-	#	lastbib = biblist.read()
-		
-	#if lastbib is None or lastbib == '\n':
-	#	lastbib = '0'
 
 	query = """SELECT RECORD_ID, LINK, URL_HOST
 			FROM ELINK_INDEX 
@@ -190,9 +186,7 @@ def get_bibs(picklist):
 			writer.writerow(row)
 			c += 1
 		
-		#with open(logdir+'lastbib.txt','wb+') as lastbib, open(logdir+'bib.log','ab+') as biblog, open(logdir+'elink.log','ab+') as elinklog:
 		with open(logdir+'elink.log','ab+') as elinklog:
-			#biblog.write(justnow + '\t' + bib +'\n')
 			elinklog.write(justnow+'\ntotal bibs in ELINK_INDEX: '+str(c)+'\n')
 	logging.info('wrote out report')
 	if verbose:
@@ -216,7 +210,7 @@ def make_report(picklist):
 		
 		with open(outdir+picklist,'ab+') as outfile, open(logdir+'details_'+today+'.csv','wb+') as reasonsfile:
 				writer = csv.writer(outfile)
-				row = ['bib','title','host','url','status','redirect','redirect_status','last_checked','suppressed','was_in_cache','pinged','f040','f945'] # the header row
+				row = ['bib','title','host','url','status','redirect','redirect_status','last_checked','last_check_in_days','suppressed','was_in_cache','pinged','f040','f945'] # the header row
 				writer.writerow(row)
 				detailsrow = ['bib','host','url','resp','redir','redirst','last_checked','suppressed','cached', 'pinged','count']
 				detailswriter = csv.writer(reasonsfile)
@@ -250,6 +244,7 @@ def query_elink_index(bibid,url,host):
 	cached = False
 	check_date = None
 	con = lite.connect(DB)
+	datediff = 0
 	last_checked = ''
 	pinged = 'n'
 	redir = ''
@@ -357,7 +352,7 @@ def query_elink_index(bibid,url,host):
 				
 			# this may just be a temporary file to make sure the counts are correct (per host and per run)
 			with open(logdir+'details_'+today+'.csv','ab+') as detailsfile:
-				details = [bib,host,url,resp,redir,redirst,last_checked,suppressed,cached, pinged,count]
+				details = [bib,host,url,resp,redir,redirst,last_checked,datediff,suppressed,cached,pinged,count]
 				detailswriter = unicodecsv.writer(detailsfile, encoding='utf-8')
 				detailswriter.writerow(details)
 			
@@ -483,7 +478,6 @@ def make_pie():
 
   var data = ["""
 
-   
 	footer = """]
    d3plus.viz()
     .container("#viz")
@@ -531,8 +525,8 @@ if __name__ == "__main__":
 	parser.add_argument("-n", "--number",required=False, default=1000, dest="numtocheck", help="Number of links to check")
 	parser.add_argument("-s", "--sample",required=False, default=4, dest="sample", help="Max number of urls per domain")
 	parser.add_argument('-a','--age',dest="maxage",help="Max days after which to re-check WorldCat",required=False, default=30)
-	args = vars(parser.parse_args())
 	parser.add_argument("-l", "--limit",required=False, default=100, dest="seerslimit", help="Max number of urls for the SeERs unit to check")
+	args = vars(parser.parse_args())
 
 	copy_report = args['copy_report']
 	ignore_cache = args['ignore_cache']
