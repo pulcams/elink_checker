@@ -24,6 +24,7 @@ import argparse
 import ConfigParser
 import csv
 import cx_Oracle
+import eventlet
 import glob
 import logging
 import os
@@ -36,6 +37,7 @@ import time
 import unicodecsv
 import urllib
 from datetime import date, datetime, timedelta
+eventlet.monkey_patch()
 
 today = time.strftime('%Y%m%d') # for csv filename
 todaydb = time.strftime('%Y-%m-%d %H:%M:%S') # date for db
@@ -205,7 +207,7 @@ def make_report(picklist):
 	with open(indir+picklist,'rb+') as csvfile:
 		reader = csv.reader(csvfile, delimiter=',', quotechar='"')
 		
-		with open(outdir+picklist,'ab+') as outfile, open(logdir+'details_'+today+'.csv','wb+') as reasonsfile:
+		with open(outdir+picklist,'ab+') as outfile, open(logdir+today+'_details'.csv','wb+') as reasonsfile:
 				writer = csv.writer(outfile)
 				row = ['bib','title','host','url','status','redirect','redirect_status','last_checked','last_check_in_days','suppressed','was_in_cache','pinged','f040','f945'] # the header row
 				writer.writerow(row) # <= a file will be generated with a header row even if there were no links to report
@@ -282,8 +284,8 @@ def query_elink_index(bibid,url,host):
 			ti = row[1]
 			url = url.decode('utf-8')
 			suppressed = row[2]
-			gov945 = 'govdoc' if re.search('DOCS',str(row[3])) else ''
-			gov040 = 'govdoc' if re.search('MvI',str(row[4]),re.IGNORECASE) else '' # TODO return 'govdoc'
+			gov945 = 'govdoc' if re.search('DOCS',str(row[3])) else 'none'
+			gov040 = 'govdoc' if re.search('MvI',str(row[4]),re.IGNORECASE) else 'none' # TODO return 'govdoc'
 				
 			if ignore_cache==False: # if checking the cache...	
 				with con:
@@ -327,9 +329,6 @@ def query_elink_index(bibid,url,host):
 					count += 1
 					pinged = 'y'
 					
-			if resp and 'requests.exceptions.MissingSchema' in str(resp): # TODO: try except
-				resp = 'bad url'
-
 			if last_checked != '' and ignore_cache == False:
 				with con:
 					cur = con.cursor() 
@@ -342,19 +341,19 @@ def query_elink_index(bibid,url,host):
 						updateurl = (last_checked, bib, url)
 						cur.executemany("UPDATE bibs SET last_checked=? WHERE bib=? and url=?", (updateurl,))
 								
-			newrow = [bib,ti,host,url,resp,redir,redirst,last_checked,cached,gov040,gov945]
+			newrow = [bib, ti, host, url, resp, redir, redirst, last_checked, datediff, cached, gov040, gov945]
 			
 			if verbose:
-				print("%s checked -- %s, %s, %s, %s, %s, %s, %s, %s, %s, %s" % (count,bib,host,url,resp,redir,redirst,last_checked,suppressed,cached, pinged))
+				print("%s checked -- %s, %s, %s, %s, %s, %s, %s, %s, %s, %s" % (count,bib,host,url,resp,redir,redirst,last_checked,suppressed,cached,pinged))
 				
 			# this may just be a temporary file to make sure the counts are correct (per host and per run)
 			with open(logdir+'details_'+today+'.csv','ab+') as detailsfile:
 				details = [bib,host,url,resp,redir,redirst,last_checked,datediff,cached,pinged,count]
 				detailswriter = unicodecsv.writer(detailsfile, encoding='utf-8')
 				detailswriter.writerow(details)
-			
+				
 			with open(outdir+picklist,'ab+') as outfile:
-				if resp != 200 and redirst != 200 and last_checked == todaydb: # just report out the fresh problems
+				if resp != 200 and redirst != 200 and last_checked[:10] == todaydb[:10] and suppressed == False: # just report out the fresh problems
 					writer = unicodecsv.writer(outfile, encoding='utf-8')
 					writer.writerow(newrow)
 			outlength = check_file_len(outdir+picklist)
@@ -386,24 +385,25 @@ def get_reponse(url):
 	redir = ''
 	redirstatus = ''
 	msg = ''
-	connect_timeout = 7.0
+	connect_timeout = 10.0
 	
 	try:
-		r = requests.get(url, allow_redirects=True, timeout=(connect_timeout))
+		with eventlet.Timeout(connect_timeout): # <= this is needed to prevent hanging on large pdfs
+			r = requests.get(url, allow_redirects=True)
 
-		if str(r.status_code).startswith('3') and r.history: # catch redirects
-			for resp in r.history:
-				redirto = resp.headers['Location']
-				try:
-					requests.get(redirto).status_code
-				except: # in case there's a bad redirect URL
-					redirstatus = 'bad redirect URL'
-				hist = resp.status_code, redirto, redirstatus
-			msg = hist
-		else:
-			msg = r.status_code, redir, redirstatus
-		return msg
-	except requests.exceptions.Timeout as e:
+			if str(r.status_code).startswith('3') and r.history: # catch redirects
+				for resp in r.history:
+					redirto = resp.headers['Location']
+					try:
+						requests.get(redirto).status_code
+					except: # in case there's a bad redirect URL
+						redirstatus = 'bad redirect URL'
+					hist = resp.status_code, redirto, redirstatus
+				msg = hist
+			else:
+				msg = r.status_code, redir, redirstatus
+			return msg
+	except eventlet.timeout.Timeout as e:
 		msg = 'timeout','',''
 	except requests.exceptions.HTTPError as e:
 		msg = 'HTTPError','',''
@@ -413,6 +413,10 @@ def get_reponse(url):
 		msg = 'Too many redirects','',''
 	except requests.exceptions.InvalidSchema as e:
 		msg = 'Invalid schema','',''
+	except requests.exceptions.MissingSchema as e:
+		msg = 'Bad url','',''
+	except exceptions.KeyboardInterrupt as e:
+		msg = 'stopped','',''
 	except:
 		msg = sys.exc_info()[0],'',''
 	return msg
