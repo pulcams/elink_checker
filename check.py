@@ -197,7 +197,7 @@ def make_report(picklist):
 	Input is the csv picklist. Output is report with HTTP statuses added.
 	"""	
 	try:
-		os.rename(outdir+picklist, outdir+picklist + '.bak') # back up output from previous runs on same day
+		os.rename(outdir+picklist, outdir+picklist + '.bak') # back up output from previous run on same day (once)
 	except OSError:
 		pass
 
@@ -207,7 +207,7 @@ def make_report(picklist):
 	with open(indir+picklist,'rb+') as csvfile:
 		reader = csv.reader(csvfile, delimiter=',', quotechar='"')
 		
-		with open(outdir+picklist,'ab+') as outfile, open(logdir+today+'_details'.csv','wb+') as reasonsfile:
+		with open(outdir+picklist,'ab+') as outfile, open(logdir+today+'_details.csv','wb+') as reasonsfile:
 				writer = csv.writer(outfile)
 				row = ['bib','title','host','url','status','redirect','redirect_status','last_check_in_days','suppressed','f040','f945'] # the header row of report for SeERs staff
 				writer.writerow(row) # <= a file will be generated with a header row even if there were no links to report
@@ -229,7 +229,7 @@ def make_report(picklist):
 			logging.info('problem: %s %s' % (e[:2]))
 		with open('./temp/count.txt','rb') as countfile:
 			count = countfile.read().rstrip('\n')
-			logging.info('checked: %s' % count)
+			logging.info('pinged: %s' % count)
 		with open(outdir+picklist,'rb') as reportfile:
 			for i, line in enumerate(reportfile):
 				pass
@@ -244,7 +244,7 @@ def query_elink_index(bibid,url,host):
 	check_date = None
 	con = lite.connect(DB)
 	datediff = 0
-	last_checked = ''
+	last_checked = todaydb
 	pinged = 'n'
 	redir = ''
 	redirst = ''
@@ -285,7 +285,7 @@ def query_elink_index(bibid,url,host):
 			url = url.decode('utf-8')
 			suppressed = row[2]
 			gov945 = 'govdoc' if re.search('DOCS',str(row[3])) else 'none'
-			gov040 = 'govdoc' if re.search('MvI',str(row[4]),re.IGNORECASE) else 'none' # TODO return 'govdoc'
+			gov040 = 'govdoc' if re.search('MvI',str(row[4]),re.IGNORECASE) else 'none'
 				
 			if ignore_cache==False: # if checking the cache...	
 				with con:
@@ -347,7 +347,7 @@ def query_elink_index(bibid,url,host):
 				print("%s checked -- %s, %s, %s, %s, %s, %s, %s, %s, %s, %s" % (count,bib,host,url,resp,redir,redirst,last_checked,suppressed,cached,pinged))
 				
 			# this may just be a temporary file to make sure the counts are correct (per host and per run)
-			with open(logdir+'details_'+today+'.csv','ab+') as detailsfile:
+			with open(logdir+today+'_details.csv','ab+') as detailsfile:
 				details = [bib,host,url,resp,redir,redirst,last_checked,datediff,cached,pinged,count]
 				detailswriter = unicodecsv.writer(detailsfile, encoding='utf-8')
 				detailswriter.writerow(details)
@@ -358,7 +358,7 @@ def query_elink_index(bibid,url,host):
 					writer.writerow(newrow)
 			outlength = check_file_len(outdir+picklist)
 			if outlength >= seerslimit:
-				logging.info('Quitting after reporting issues (%s)' % seerslimit)
+				logging.info('Quitting after reporting bad links (%s)' % seerslimit)
 				return 'done'
 	else:
 		return 'done'
@@ -524,7 +524,7 @@ if __name__ == "__main__":
 	parser.add_argument("-C", "--ignore-cache",required=False, default=False,dest="ignore_cache", action="store_true", help="Optionally ignore the cache to test all URLs freshly.")
 	parser.add_argument("-c", "--copy",required=False, default=False, dest="copy_report", action="store_true", help="Copy the resulting report to the share specified in cfg file.")
 	parser.add_argument("-v", "--verbose",required=False, default=False, dest="verbose", action="store_true", help="Print out bibs and urls as it runs.")
-	parser.add_argument("-n", "--number",required=False, default=1000, dest="numtocheck", help="Number of links to check")
+	parser.add_argument("-n", "--number",required=False, default=1500, dest="numtocheck", help="Number of links to check")
 	parser.add_argument("-s", "--sample",required=False, default=4, dest="sample", help="Max number of urls per domain")
 	parser.add_argument('-a','--age',dest="maxage",help="Max days after which to re-check WorldCat",required=False, default=30)
 	parser.add_argument("-l", "--limit",required=False, default=100, dest="seerslimit", help="Max number of urls for the SeERs unit to check")
