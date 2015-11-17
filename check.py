@@ -209,9 +209,9 @@ def make_report(picklist):
 		
 		with open(outdir+picklist,'ab+') as outfile, open(logdir+today+'_details'.csv','wb+') as reasonsfile:
 				writer = csv.writer(outfile)
-				row = ['bib','title','host','url','status','redirect','redirect_status','last_checked','last_check_in_days','suppressed','was_in_cache','pinged','f040','f945'] # the header row
+				row = ['bib','title','host','url','status','redirect','redirect_status','last_check_in_days','suppressed','f040','f945'] # the header row of report for SeERs staff
 				writer.writerow(row) # <= a file will be generated with a header row even if there were no links to report
-				detailsrow = ['bib','host','url','resp','redir','redirst','last_checked','cached', 'pinged','count']
+				detailsrow = ['bib','host','url','resp','redir','redirst','last_checked','last_check_in_days','cached', 'pinged','count'] # header row for detailed log file
 				detailswriter = csv.writer(reasonsfile)
 				row.append('check_count')
 				detailswriter.writerow(detailsrow)
@@ -340,8 +340,8 @@ def query_elink_index(bibid,url,host):
 						# or, if it was in the cache from a previous run but was from before the max date...
 						updateurl = (last_checked, bib, url)
 						cur.executemany("UPDATE bibs SET last_checked=? WHERE bib=? and url=?", (updateurl,))
-								
-			newrow = [bib, ti, host, url, resp, redir, redirst, last_checked, datediff, cached, gov040, gov945]
+
+			newrow = [bib, ti, host, url, resp, redir, redirst, datediff, suppressed, gov040, gov945] # SeERs report
 			
 			if verbose:
 				print("%s checked -- %s, %s, %s, %s, %s, %s, %s, %s, %s, %s" % (count,bib,host,url,resp,redir,redirst,last_checked,suppressed,cached,pinged))
@@ -353,7 +353,7 @@ def query_elink_index(bibid,url,host):
 				detailswriter.writerow(details)
 				
 			with open(outdir+picklist,'ab+') as outfile:
-				if resp != 200 and redirst != 200 and last_checked[:10] == todaydb[:10] and suppressed == False: # just report out the fresh problems
+				if resp != 200 and redirst != 200 and last_checked[:10] == todaydb[:10]: # just report out the fresh problems
 					writer = unicodecsv.writer(outfile, encoding='utf-8')
 					writer.writerow(newrow)
 			outlength = check_file_len(outdir+picklist)
