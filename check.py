@@ -113,6 +113,7 @@ def get_bibs(picklist):
 			AND LINK NOT LIKE '%%dx.doi.org%%'
 			AND LINK NOT LIKE '%%eebo.chadwyck.com%%'
 			AND LINK NOT LIKE '%%elibrary.worldbank.org%%'
+			AND LINK NOT LIKE '%%www.editionxii.co.uk%%'
 			AND LINK NOT LIKE '%%find.galegroup.com%%'
 			AND LINK NOT LIKE '%%galenet.galegroup.com%%'
 			AND LINK NOT LIKE '%%gateway.proquest.com%%'
@@ -184,7 +185,9 @@ def get_bibs(picklist):
 		c = 0
 		for row in r:
 			bib = str(row[0]) # to put in log files below
-			writer.writerow(row)
+			url = row[1]
+			host = row[2]
+			writer.writerow((bib,url,host))
 			c += 1
 		
 	logging.info('bibs in ELINK_INDEX: %s' % str(c))
@@ -224,9 +227,9 @@ def make_report(picklist):
 					q = query_elink_index(bibid,url,host) # <= check against ELINK_INDEX to get more data and check link if appropriate
 					if q == 'done':
 						return
-		except:
-			e = sys.exc_info()
-			logging.info('problem: %s %s' % (e[:2]))
+		except Exception as e:
+			exc_type,exc_obj,exc_tb = sys.exc_info()
+			logging.info('problem: %s obj: %s line: %s' % (exc_type,exc_obj,exc_tb.tb_lineno))
 		with open('./temp/count.txt','rb') as countfile:
 			count = countfile.read().rstrip('\n')
 			logging.info('pinged: %s' % count)
@@ -240,10 +243,13 @@ def query_elink_index(bibid,url,host):
 	"""
 	Query the ELINK_INDEX table
 	"""
+	bib = bibid
 	cached = False
 	check_date = None
 	con = lite.connect(DB)
 	datediff = 0
+	gov040 = ''
+	gov945 = ''
 	last_checked = todaydb
 	pinged = 'n'
 	redir = ''
@@ -252,7 +258,9 @@ def query_elink_index(bibid,url,host):
 	response = ''
 	redirect_url = ''
 	redirect_status = ''
-	url = url.replace("'","''") # any single quotes need to be doubled
+	suppressed = ''
+	ti = ''
+	url = url.replace("'","''") # any single quotes need to be doubled in SQL
 	
 	dsn = cx_Oracle.makedsn(HOST,PORT,SID)
 	db = cx_Oracle.connect(USER,PASS,dsn)
@@ -270,7 +278,7 @@ def query_elink_index(bibid,url,host):
 
 	c = db.cursor()
 	c.execute(sql % (bibid,url))
-
+		
 	with open('./temp/count.txt','rb+') as countfile:
 		count = countfile.read().rstrip('\n')
 		if count == '':
@@ -282,13 +290,13 @@ def query_elink_index(bibid,url,host):
 		for row in c:
 			bib = row[0]
 			ti = row[1]
-			url = url.decode('utf-8')
 			suppressed = row[2]
 			gov945 = 'govdoc' if re.search('DOCS',str(row[3])) else 'none'
 			gov040 = 'govdoc' if re.search('MvI',str(row[4]),re.IGNORECASE) else 'none'
-				
+
 			if ignore_cache==False: # if checking the cache...	
 				with con:
+					#url = url.decode('utf-8')
 					con.row_factory = lite.Row
 					cur = con.cursor()
 					cur.execute("SELECT * FROM bibs WHERE bib=? and url=?",(bib,url,))
@@ -329,20 +337,20 @@ def query_elink_index(bibid,url,host):
 					count += 1
 					pinged = 'y'
 					
-			if last_checked != '' and ignore_cache == False:
+			if last_checked != '' and ignore_cache == False and str(resp) != '': # (if sample has been surpassed, status will be '')
 				with con:
 					cur = con.cursor() 
 					if cached == False:
 						# insert new url and statuses into db...
-						newurl = (bib, str(url), str(resp), redir, redirst, last_checked)
+						newurl = (bib, url, str(resp), redir, redirst, last_checked)
 						cur.executemany("INSERT INTO bibs VALUES(?, ?, ?, ?, ?, ?)", (newurl,))
 					else:
 						# or, if it was in the cache from a previous run but was from before the max date...
 						updateurl = (last_checked, bib, url)
 						cur.executemany("UPDATE bibs SET last_checked=? WHERE bib=? and url=?", (updateurl,))
-
+	
 			newrow = [bib, ti, host, url, resp, redir, redirst, datediff, suppressed, gov040, gov945] # SeERs report
-			
+				
 			if verbose:
 				print("%s checked -- %s, %s, %s, %s, %s, %s, %s, %s, %s, %s" % (count,bib,host,url,resp,redir,redirst,last_checked,suppressed,cached,pinged))
 				
@@ -353,9 +361,9 @@ def query_elink_index(bibid,url,host):
 				detailswriter.writerow(details)
 				
 			with open(outdir+picklist,'ab+') as outfile:
-				if resp != 200 and redirst != 200 and last_checked[:10] == todaydb[:10]: # just report out the fresh problems
-					writer = unicodecsv.writer(outfile, encoding='utf-8')
-					writer.writerow(newrow)
+				if ((str(resp) != '' and str(resp) != '200' and str(redirst) != '200') and (last_checked[:10] == todaydb[:10])): # just report out the fresh problems
+					report_writer = unicodecsv.writer(outfile, encoding='utf-8')
+					report_writer.writerow(newrow)
 			outlength = check_file_len(outdir+picklist)
 			if outlength >= seerslimit:
 				logging.info('Quitting after reporting bad links (%s)' % seerslimit)
@@ -389,6 +397,7 @@ def get_reponse(url):
 	
 	try:
 		with eventlet.Timeout(connect_timeout): # <= this is needed to prevent hanging on large pdfs
+
 			r = requests.get(url, allow_redirects=True)
 
 			if str(r.status_code).startswith('3') and r.history: # catch redirects
@@ -403,7 +412,8 @@ def get_reponse(url):
 			else:
 				msg = r.status_code, redir, redirstatus
 			return msg
-	except eventlet.timeout.Timeout as e:
+			
+	except eventlet.timeout.Timeout:
 		msg = 'timeout','',''
 	except requests.exceptions.HTTPError as e:
 		msg = 'HTTPError','',''
@@ -415,8 +425,10 @@ def get_reponse(url):
 		msg = 'Invalid schema','',''
 	except requests.exceptions.MissingSchema as e:
 		msg = 'Bad url','',''
-	except exceptions.KeyboardInterrupt as e:
+	except KeyboardInterrupt as e:
 		msg = 'stopped','',''
+	except UnicodeEncodeError as e:
+		msg = 'unicode error','',''
 	except:
 		msg = sys.exc_info()[0],'',''
 	return msg
