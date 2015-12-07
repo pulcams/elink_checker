@@ -4,7 +4,7 @@
 Check the status of links within Voyager bib records.
 Fill in check.cfg, then run the script like this (the usual way):
 
-`python check.py -v -n 10`
+`python check.py -v`
 
 ...or use a list of bibs (can be used when re-running over a previous list)... 
 
@@ -38,6 +38,11 @@ import unicodecsv
 import urllib
 from datetime import date, datetime, timedelta
 eventlet.monkey_patch()
+
+# TODO
+# advantage of using ELINK_ID rather than bib+url?
+# query update_date from ELINK_INDEX for reporting
+# summary report
 
 today = time.strftime('%Y%m%d') # for csv filename
 todaydb = time.strftime('%Y-%m-%d %H:%M:%S') # date for db
@@ -79,11 +84,12 @@ def main(picklist):
 	make_report(picklist)
 	if copy_report == True:
 		mv_outfiles()
-	make_pie()
+	make_tree()
 	print('all done!')
 	print('-' * 50)
 	logging.info('done')
 	logging.info('='*75)
+	print('bye')
 
 
 def get_bibs(picklist):
@@ -113,7 +119,6 @@ def get_bibs(picklist):
 			AND LINK NOT LIKE '%%dx.doi.org%%'
 			AND LINK NOT LIKE '%%eebo.chadwyck.com%%'
 			AND LINK NOT LIKE '%%elibrary.worldbank.org%%'
-			AND LINK NOT LIKE '%%www.editionxii.co.uk%%'
 			AND LINK NOT LIKE '%%find.galegroup.com%%'
 			AND LINK NOT LIKE '%%galenet.galegroup.com%%'
 			AND LINK NOT LIKE '%%gateway.proquest.com%%'
@@ -365,7 +370,7 @@ def query_elink_index(bibid,url,host):
 					report_writer = unicodecsv.writer(outfile, encoding='utf-8')
 					report_writer.writerow(newrow)
 			outlength = check_file_len(outdir+picklist)
-			if outlength >= seerslimit:
+			if outlength >= (seerslimit + 1): # +1 for the header row
 				logging.info('Quitting after reporting bad links (%s)' % seerslimit)
 				return 'done'
 	else:
@@ -454,11 +459,18 @@ def mv_outfiles():
 		except:
 			print("problem with moving files: %s" % sys.exc_info()[1])
 			pass
+
   
+def make_html():
+	
+	with open(outdir+picklist,'rb') as outfile:
+		reader = csv.reader(outfile, delimiter=',', quotechar='"')
+		for row in reader:
+			print(row)
   
-def make_pie():
+def make_tree():
 	"""
-	Generate simple pie chart
+	Generate simple treemap
 	"""
 	htmlfile = open('./html/elink.html','wb+')
 	
@@ -557,3 +569,4 @@ if __name__ == "__main__":
 		get_bibs(picklist) # generate a picklist, starting from the bib id in ./log/lastbib.txt
 
 	main(picklist)
+	make_html()
