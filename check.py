@@ -461,12 +461,11 @@ def mv_outfiles():
 			pass
 
   
-def make_html():
-	
-	with open(outdir+picklist,'rb') as outfile:
-		reader = csv.reader(outfile, delimiter=',', quotechar='"')
-		for row in reader:
-			print(row)
+#def make_html():
+	#with open(outdir+picklist,'rb') as outfile:
+		#reader = csv.reader(outfile, delimiter=',', quotechar='"')
+		#for row in reader:
+			#print(row)
   
 def make_tree():
 	"""
@@ -491,9 +490,10 @@ def make_tree():
 <script src="http://www.d3plus.org/js/d3plus.js"></script>
 <div class="container">
 <h1>Voyager Link Check</h1>
-<p>Start date: 09/01/2015. Last report: """+time.strftime('%m/%d/%Y')+""".</p>
-<p>Statuses of the <span style='font-size:1.25em'>"""+total+"""</span> URLs checked so far...</p>
-<sub><a href='http://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html' target="_BLANK">status codes</a></sub>
+<p>Start date: 11/23/2015. Last report: """+time.strftime('%m/%d/%Y')+""".</p>
+<p>Statuses of the <span style='font-size:1.25em'>"""+total+"""</span> URLs checked so far...</p>"""
+
+	body = """<sub><a href='http://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html' target="_BLANK">status codes</a></sub>
 <div id="viz" style="margin:10px 10px 10px 0px;height:600px;"></div>
 </div>
 <script>
@@ -519,6 +519,18 @@ def make_tree():
 </script> 
 """
 	htmlfile.write(header)
+	htmlfile.write('<table class="table-condensed table-bordered"><tr><td>status</td><td>no. of links</td></tr>')
+	with con:
+		con.row_factory = lite.Row
+		cur = con.cursor()
+		cur.execute("select status, count(status) from bibs group by status")
+		rows = cur.fetchall()
+		for row in rows:
+			response = str(row[0])
+			count = row[1]
+			htmlfile.write('<tr><td>%s</td><td>%s</td></tr>' % (response,count))
+	htmlfile.write("</table>")
+	htmlfile.write(body)
 	
 	rownum = 0
 	with con:
@@ -569,4 +581,4 @@ if __name__ == "__main__":
 		get_bibs(picklist) # generate a picklist, starting from the bib id in ./log/lastbib.txt
 
 	main(picklist)
-	make_html()
+	make_tree()
