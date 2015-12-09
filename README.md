@@ -12,6 +12,8 @@ For more: `python check.py -h`
 
 To (re)create sqlite db (cache): `CREATE TABLE bibs(bib INT, url TEXT, status TEXT, redirect TEXT, redirect_status TEXT, last_checked DATE, PRIMARY KEY (bib, url));`
 
+#### Logic
+Query ELINK_INDEX table for links of unsuppressed BIBs and output a csv report. Using this report, check 4 links per host and report out up to 100 problem links for staff to check. Only check links that haven't already been checked in the last 30 days. (Each of these constraints can be adjusted using flags; these are just the defaults.)  
 
 #### Requires
 * [cx_Oracle](http://cx-oracle.sourceforge.net/) ([installation](https://gist.github.com/kimus/10012910) is a bit involved)
