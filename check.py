@@ -40,7 +40,6 @@ from datetime import date, datetime, timedelta
 eventlet.monkey_patch()
 
 # TODO
-# advantage of using ELINK_ID rather than bib+url?
 # query update_date from ELINK_INDEX for reporting
 # summary report
 
@@ -99,7 +98,8 @@ def get_bibs(picklist):
 	if verbose:
 		print('hi. running report...')
 
-	query = """SELECT RECORD_ID, LINK, URL_HOST
+	# note: advantage of querying bib+url rather than ELINK_ID is to avoid checking dupes (i.e. mult urls per bib)
+	query = """SELECT DISTINCT RECORD_ID, LINK, URL_HOST
 			FROM ELINK_INDEX 
 			WHERE
 			RECORD_TYPE='B'
@@ -270,7 +270,7 @@ def query_elink_index(bibid,url,host):
 	dsn = cx_Oracle.makedsn(HOST,PORT,SID)
 	db = cx_Oracle.connect(USER,PASS,dsn)
 		
-	sql = """SELECT ELINK_INDEX.RECORD_ID, SUBSTR(BIB_TEXT.TITLE_BRIEF,1,25), BIB_MASTER.SUPPRESS_IN_OPAC, princetondb.GETBIBSUBFIELD(BIB_MASTER.BIB_ID, '945','a') as f945a, princetondb.GETALLBIBTAG(BIB_MASTER.BIB_ID, '040') as f040
+	sql = """SELECT DISTINCT ELINK_INDEX.RECORD_ID, SUBSTR(BIB_TEXT.TITLE_BRIEF,1,25), BIB_MASTER.SUPPRESS_IN_OPAC, princetondb.GETBIBSUBFIELD(BIB_MASTER.BIB_ID, '945','a') as f945a, princetondb.GETALLBIBTAG(BIB_MASTER.BIB_ID, '040') as f040
 	FROM
 	ELINK_INDEX
 	LEFT JOIN BIB_TEXT ON ELINK_INDEX.RECORD_ID = BIB_TEXT.BIB_ID
@@ -365,8 +365,8 @@ def query_elink_index(bibid,url,host):
 				detailswriter = unicodecsv.writer(detailsfile, encoding='utf-8')
 				detailswriter.writerow(details)
 				
-			with open(outdir+picklist,'ab+') as outfile:
-				if ((str(resp) != '' and str(resp) != '200' and str(redirst) != '200') and (last_checked[:10] == todaydb[:10])): # just report out the fresh problems
+			with open(outdir+picklist,'ab+') as outfile: #TODO: check this
+				if ((str(resp) != '' and str(resp) != '200' and str(redirst) != '200') and (last_checked == todaydb)): # just report out the fresh problems
 					report_writer = unicodecsv.writer(outfile, encoding='utf-8')
 					report_writer.writerow(newrow)
 			outlength = check_file_len(outdir+picklist)
@@ -519,7 +519,7 @@ def make_tree():
 </script> 
 """
 	htmlfile.write(header)
-	htmlfile.write('<table class="table-condensed table-bordered"><tr><td>status</td><td>no. of links</td></tr>')
+	htmlfile.write('<table class="table-condensed table-bordered">\n<tr><td>status</td><td>no. of links</td></tr>\n')
 	with con:
 		con.row_factory = lite.Row
 		cur = con.cursor()
@@ -528,7 +528,7 @@ def make_tree():
 		for row in rows:
 			response = str(row[0])
 			count = row[1]
-			htmlfile.write('<tr><td>%s</td><td>%s</td></tr>' % (response,count))
+			htmlfile.write('<tr><td>%s</td><td>%s</td></tr>\n' % (response,count))
 	htmlfile.write("</table>")
 	htmlfile.write(body)
 	
