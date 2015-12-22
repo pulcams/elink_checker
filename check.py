@@ -227,7 +227,7 @@ def make_report(picklist):
 			for row in reader:
 				if row[0].isdigit(): # first col should be bib_id and this skips header row if there is one
 					bibid = row[0]
-					url = row[1]
+					url = row[1].decode('utf-8')
 					host = row[2]
 					q = query_elink_index(bibid,url,host) # <= check against ELINK_INDEX to get more data and check link if appropriate
 					if q == 'done':
@@ -301,7 +301,7 @@ def query_elink_index(bibid,url,host):
 
 			if ignore_cache==False: # if checking the cache...	
 				with con:
-					#url = url.decode('utf-8')
+					url = url.decode('utf-8')
 					con.row_factory = lite.Row
 					cur = con.cursor()
 					cur.execute("SELECT * FROM bibs WHERE bib=? and url=?",(bib,url,))
@@ -365,8 +365,8 @@ def query_elink_index(bibid,url,host):
 				detailswriter = unicodecsv.writer(detailsfile, encoding='utf-8')
 				detailswriter.writerow(details)
 				
-			with open(outdir+picklist,'ab+') as outfile: #TODO: check this
-				if ((str(resp) != '' and str(resp) != '200' and str(redirst) != '200') and (last_checked == todaydb)): # just report out the fresh problems
+			with open(outdir+picklist,'ab+') as outfile:
+				if ((str(resp) != '' and str(resp) != '200' and str(redirst) != '200') and (str(last_checked[:10]) == todaydb[:10])): # just report out the fresh problems
 					report_writer = unicodecsv.writer(outfile, encoding='utf-8')
 					report_writer.writerow(newrow)
 			outlength = check_file_len(outdir+picklist)
@@ -403,13 +403,13 @@ def get_reponse(url):
 	try:
 		with eventlet.Timeout(connect_timeout): # <= this is needed to prevent hanging on large pdfs
 
-			r = requests.get(url, allow_redirects=True)
+			r = requests.head(url, allow_redirects=True)
 
 			if str(r.status_code).startswith('3') and r.history: # catch redirects
 				for resp in r.history:
 					redirto = resp.headers['Location']
 					try:
-						requests.get(redirto).status_code
+						requests.head(redirto).status_code
 					except: # in case there's a bad redirect URL
 						redirstatus = 'bad redirect URL'
 					hist = resp.status_code, redirto, redirstatus
@@ -428,6 +428,8 @@ def get_reponse(url):
 		msg = 'Too many redirects','',''
 	except requests.exceptions.InvalidSchema as e:
 		msg = 'Invalid schema','',''
+	except requests.exceptions.InvalidURL as e:
+		msg = 'Invalid URL','',''
 	except requests.exceptions.MissingSchema as e:
 		msg = 'Bad url','',''
 	except KeyboardInterrupt as e:
@@ -466,6 +468,7 @@ def mv_outfiles():
 		#reader = csv.reader(outfile, delimiter=',', quotechar='"')
 		#for row in reader:
 			#print(row)
+
   
 def make_tree():
 	"""
@@ -578,7 +581,7 @@ if __name__ == "__main__":
 	logging.info('='*75)
 	if not picklist: # if no file given, run query against vger...
 		picklist = 'links_to_check_'+today+'.csv'
-		get_bibs(picklist) # generate a picklist, starting from the bib id in ./log/lastbib.txt
+		#get_bibs(picklist) # generate a picklist, starting from the bib id in ./log/lastbib.txt
 
 	main(picklist)
 	make_tree()
