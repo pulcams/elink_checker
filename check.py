@@ -40,7 +40,7 @@ from datetime import date, datetime, timedelta
 eventlet.monkey_patch()
 
 # TODO
-# query update_date from ELINK_INDEX for reporting
+# query update_date from ELINK_INDEX for reporting?
 # summary report
 
 today = time.strftime('%Y%m%d') # for csv filename
@@ -321,7 +321,7 @@ def query_elink_index(bibid,url,host):
 					date1 = datetime.strptime(str(check_date),'%Y-%m-%d %H:%M:%S')
 					datediff = abs((date2 - date1).days)
 
-				if cached == True and datediff < maxage: # don't bother to re-check unless it was last checked before the 'maxage' date
+				if cached == True and (datediff < maxage and response == 200): # don't bother to re-check unless it was last checked before the 'maxage' date or the response was a-ok
 					resp = response # from cache
 					redir = redirect_url # from cache
 					redirst = redirect_status # from cache
@@ -351,8 +351,8 @@ def query_elink_index(bibid,url,host):
 						cur.executemany("INSERT INTO bibs VALUES(?, ?, ?, ?, ?, ?)", (newurl,))
 					else:
 						# or, if it was in the cache from a previous run but was from before the max date...
-						updateurl = (last_checked, bib, url)
-						cur.executemany("UPDATE bibs SET last_checked=? WHERE bib=? and url=?", (updateurl,))
+						updateurl = (last_checked, resp, redir, redirst, bib, url)
+						cur.executemany("UPDATE bibs SET last_checked=?,status=?,redirect=?,redirect_status=? WHERE bib=? and url=?", (updateurl,))
 	
 			newrow = [bib, ti, host, url, resp, redir, redirst, datediff, suppressed, gov040, gov945] # SeERs report
 				
@@ -399,12 +399,10 @@ def get_reponse(url):
 	redirstatus = ''
 	msg = ''
 	connect_timeout = 10.0
-	
+	url = str(url).strip()
 	try:
 		with eventlet.Timeout(connect_timeout): # <= this is needed to prevent hanging on large pdfs
-
 			r = requests.head(url, allow_redirects=True)
-
 			if str(r.status_code).startswith('3') and r.history: # catch redirects
 				for resp in r.history:
 					redirto = resp.headers['Location']
@@ -432,6 +430,8 @@ def get_reponse(url):
 		msg = 'Invalid URL','',''
 	except requests.exceptions.MissingSchema as e:
 		msg = 'Bad url','',''
+	except requests.exceptions.SSLError as e:
+		msg = 'SSL Error','',''
 	except KeyboardInterrupt as e:
 		msg = 'stopped','',''
 	except UnicodeEncodeError as e:
@@ -461,13 +461,6 @@ def mv_outfiles():
 		except:
 			print("problem with moving files: %s" % sys.exc_info()[1])
 			pass
-
-  
-#def make_html():
-	#with open(outdir+picklist,'rb') as outfile:
-		#reader = csv.reader(outfile, delimiter=',', quotechar='"')
-		#for row in reader:
-			#print(row)
 
   
 def make_tree():
@@ -581,7 +574,7 @@ if __name__ == "__main__":
 	logging.info('='*75)
 	if not picklist: # if no file given, run query against vger...
 		picklist = 'links_to_check_'+today+'.csv'
-		#get_bibs(picklist) # generate a picklist, starting from the bib id in ./log/lastbib.txt
+		get_bibs(picklist) # generate a picklist, starting from the bib id in ./log/lastbib.txt
 
 	main(picklist)
 	make_tree()
