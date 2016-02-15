@@ -324,7 +324,9 @@ def query_elink_index(bibid,url,host):
 					date1 = datetime.strptime(str(check_date),'%Y-%m-%d %H:%M:%S')
 					datediff = abs((date2 - date1).days)
 
-				if cached == True and ((datediff < maxage and response == 200) or (datediff > maxage and response != 200)): # don't bother to re-check unless it was last checked before the 'maxage' date or the response was a-ok
+				if cached == True and (datediff < maxage): #and response == 200):
+					# don't bother to re-check if it was last checked before the 'maxage' date or the response was a-ok
+					# note: changing this 20160215 - check whether response was 200 or not...allow time for SeERS team to fix links # in Voyager (and avoid dupes in reports)
 					resp = response # from cache
 					redir = redirect_url # from cache
 					redirst = redirect_status # from cache
