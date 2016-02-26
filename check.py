@@ -81,6 +81,7 @@ def main(picklist):
 	logging.info('max age: %s' % maxage)
 	logging.info('sample per host: %s' % sample)
 	make_report(picklist)
+	split_outfile(picklist)
 	if copy_report == True:
 		mv_outfiles()
 	make_tree()
@@ -446,6 +447,55 @@ def get_reponse(url):
 	return msg
 
 
+def split_outfile(picklist):
+	"""
+	Split the output into 3 separate reports: gov docs, serials, and general
+	"""
+	msg = 'splitting report ('
+	punct = ''
+	# first just create header rows (there's got to be a better way, but this works for now)
+	with open(outdir+'ser_'+picklist,'wb+') as serials,open(outdir+'gov_'+picklist,'wb+') as govdoc,open(outdir+'gen_'+picklist,'wb+') as general:
+		row1 = ['bib','title','host','url','status','redirect','redirect_status','last_check_in_days','suppressed','f040','f945','ldr07']
+		serwriter = csv.writer(serials)
+		serwriter.writerow(row1)
+		govwriter = csv.writer(govdoc)
+		govwriter.writerow(row1)
+		genwriter = csv.writer(general)
+		genwriter.writerow(row1) 
+
+	# write data
+	with open(outdir+picklist,'rb+') as outfile:
+		reader = csv.reader(outfile, delimiter=',', quotechar='"')
+		header_row = next(reader)				
+		for row in reader:
+			f040 = row[9]
+			f945 = row[10]
+			ldr07 = row[11]
+			if ldr07 in ['s','i']:
+				with open(outdir+'ser_'+picklist,'ab+') as serials:
+					serwriter = csv.writer(serials)
+					serwriter.writerow(row)
+			elif f945 == 'govdoc' or f040 == 'govdoc':
+				with open(outdir+'gov_'+picklist,'ab+') as govdoc:
+					govwriter = csv.writer(govdoc)
+					govwriter.writerow(row)
+			else:
+				with open(outdir+'gen_'+picklist,'ab+') as general:
+					genwriter = csv.writer(general)
+					genwriter.writerow(row) 
+
+	# delete if no links, just header row
+	filelist = [outdir+'ser_'+picklist, outdir+'gov_'+picklist, outdir+'gen_'+picklist]
+	for f in filelist:
+		if os.stat(f).st_size == 98: # this is fragile, st_size of a file with just the header row is 98
+			os.remove(f)
+		else:
+			if msg != 'splitting report (':
+				punct = ','
+			msg += punct+os.path.basename(f)[:3]
+	logging.info(msg + ')')
+
+
 def mv_outfiles():
 	"""
 	Move outfiles to network share
@@ -458,7 +508,7 @@ def mv_outfiles():
 		print("no files to mv?")
 		exit
 
-	for f in glob.glob(r''+outdir+picklist):
+	for f in glob.glob(r''+outdir+'*'+picklist):
 		try:
 			shutil.copyfile(f,dest+newname)
 			msg = "copied %s to %s" % (f, dest+newname)
