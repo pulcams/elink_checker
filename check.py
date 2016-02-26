@@ -217,7 +217,7 @@ def make_report(picklist):
 		
 		with open(outdir+picklist,'ab+') as outfile, open(logdir+today+'_details.csv','wb+') as reasonsfile:
 				writer = csv.writer(outfile)
-				row = ['bib','title','host','url','status','redirect','redirect_status','last_check_in_days','suppressed','f040','f945','f300'] # the header row of report for SeERs staff
+				row = ['bib','title','host','url','status','redirect','redirect_status','last_check_in_days','suppressed','f040','f945','ldr07'] # the header row of report for SeERs staff
 				writer.writerow(row) # <= a file will be generated with a header row even if there were no links to report
 				detailsrow = ['bib','host','url','resp','redir','redirst','last_checked','last_check_in_days','cached', 'pinged','count'] # header row for detailed log file
 				detailswriter = csv.writer(reasonsfile)
@@ -255,7 +255,7 @@ def query_elink_index(bibid,url,host):
 	datediff = 0
 	gov040 = ''
 	gov945 = ''
-	f300 = ''
+	ldr07 = ''
 	last_checked = todaydb
 	pinged = 'n'
 	redir = ''
@@ -272,7 +272,7 @@ def query_elink_index(bibid,url,host):
 	db = cx_Oracle.connect(USER,PASS,dsn)
 		
 	sql = """SELECT DISTINCT ELINK_INDEX.RECORD_ID, SUBSTR(BIB_TEXT.TITLE_BRIEF,1,25), BIB_MASTER.SUPPRESS_IN_OPAC, princetondb.GETBIBSUBFIELD(BIB_MASTER.BIB_ID, '945','a') as f945a, princetondb.GETALLBIBTAG(BIB_MASTER.BIB_ID, '040') as f040,
-	princetondb.GETALLBIBTAG(BIB_MASTER.BIB_ID, '300') as f300
+	SUBSTR(BIB_TEXT.BIB_FORMAT,2,1) as ldr07
 	FROM
 	ELINK_INDEX
 	LEFT JOIN BIB_TEXT ON ELINK_INDEX.RECORD_ID = BIB_TEXT.BIB_ID
@@ -300,7 +300,7 @@ def query_elink_index(bibid,url,host):
 			suppressed = row[2]
 			gov945 = 'govdoc' if re.search('DOCS',str(row[3])) else 'none'
 			gov040 = 'govdoc' if re.search('MvI',str(row[4]),re.IGNORECASE) else 'none'
-			f300 = row[5]
+			ldr07 = row[5]
 
 			if ignore_cache==False: # if checking the cache...	
 				with con:
@@ -359,7 +359,7 @@ def query_elink_index(bibid,url,host):
 						updateurl = (last_checked, resp, redir, redirst, bib, url)
 						cur.executemany("UPDATE bibs SET last_checked=?,status=?,redirect=?,redirect_status=? WHERE bib=? and url=?", (updateurl,))
 	
-			newrow = [bib, ti, host, url, resp, redir, redirst, datediff, suppressed, gov040, gov945, f300] # SeERs report
+			newrow = [bib, ti, host, url, resp, redir, redirst, datediff, suppressed, gov040, gov945, ldr07] # SeERs report
 				
 			if verbose:
 				print("%s checked -- %s, %s, %s, %s, %s, %s, %s, %s, %s, %s" % (count,bib,host,url,resp,redir,redirst,last_checked,suppressed,cached,pinged))
