@@ -326,8 +326,7 @@ def query_elink_index(bibid,url,host):
 					datediff = abs((date2 - date1).days)
 
 				if cached == True and (datediff < maxage): #and response == 200):
-					# don't bother to re-check if it was last checked before the 'maxage' date or the response was a-ok
-					# note: changing this 20160215 - check whether response was 200 or not...allow time for SeERS team to fix links # in Voyager (and avoid dupes in reports)
+					# don't bother to re-check if link was last checked before 'maxage' date
 					resp = response # from cache
 					redir = redirect_url # from cache
 					redirst = redirect_status # from cache
@@ -404,7 +403,7 @@ def get_reponse(url):
 	redir = ''
 	redirstatus = ''
 	msg = ''
-	connect_timeout = 10.0
+	connect_timeout = 30.0
 	url = str(url).strip()
 	try:
 		with eventlet.Timeout(connect_timeout): # <= this is needed to prevent hanging on large pdfs
