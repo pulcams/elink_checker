@@ -613,7 +613,7 @@ if __name__ == "__main__":
 	parser.add_argument("-v", "--verbose",required=False, default=False, dest="verbose", action="store_true", help="Print out bibs and urls as it runs.")
 	parser.add_argument("-n", "--number",required=False, default=1500, dest="numtocheck", help="Number of links to check")
 	parser.add_argument("-s", "--sample",required=False, default=4, dest="sample", help="Max number of urls per domain")
-	parser.add_argument('-a','--age',dest="maxage",help="Max days after which to re-check WorldCat",required=False, default=30)
+	parser.add_argument('-a','--age',dest="maxage",help="Max days after which to re-check WorldCat",required=False, default=90)
 	parser.add_argument("-l", "--limit",required=False, default=100, dest="seerslimit", help="Max number of urls for the SeERs unit to check")
 	args = vars(parser.parse_args())
 
