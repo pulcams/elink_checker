@@ -371,7 +371,7 @@ def query_elink_index(bibid,url,host):
 				detailswriter.writerow(details)
 				
 			with open(outdir+picklist,'ab+') as outfile:
-				if ((str(resp) != '' and str(resp) != '200' and str(redirst) != '200') and (str(last_checked[:10]) == todaydb[:10])): # just report out the fresh problems
+				if ((str(resp) != '' and str(resp) != '200' and str(redirst) != '200') and (str(last_checked[:10]) == todaydb[:10]) and (str(resp) != 'SSL Error')): # just report out the fresh problems, and leave out ssl errors
 					report_writer = unicodecsv.writer(outfile, encoding='utf-8')
 					report_writer.writerow(newrow)
 			outlength = check_file_len(outdir+picklist)
@@ -541,7 +541,7 @@ def make_tree():
 <div class="container">
 <h1>Voyager Link Check</h1>
 <a href="https://github.com/pulcams/elink_checker" target="_BLANK">github</a>
-<p>Start date: 11/23/2015. Last report: """+time.strftime('%m/%d/%Y')+""".</p>
+<p>Start date: 11/23/2015. Latest report: """+time.strftime('%m/%d/%Y')+""".</p>
 <p>Statuses of the <span style='font-size:1.25em'>"""+total+"""</span> URLs checked so far...</p>"""
 
 	body = """<sub><a href='http://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html' target="_BLANK">status codes</a></sub>
