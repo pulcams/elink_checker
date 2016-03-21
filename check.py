@@ -333,7 +333,7 @@ def query_elink_index(bibid,url,host):
 					last_checked = check_date # from cache
 				else:
 					if host_list.count(host) < int(sample): # <= if haven't checked `sample` recs per this host
-						resp,redir,redirst = get_reponse(url) # <= check link
+						resp,redir,redirst = get_response(url) # <= check link
 						host_list.append(host)
 						last_checked = time.strftime('%Y-%m-%d %H:%M:%S')
 						count += 1
@@ -341,7 +341,7 @@ def query_elink_index(bibid,url,host):
 						
 			else: # if ignoring cache
 				if host_list.count(host) < int(sample):
-					resp,redir,redirst = get_reponse(url) # <= check link
+					resp,redir,redirst = get_response(url) # <= check link
 					host_list.append(host)
 					last_checked = time.strftime('%Y-%m-%d %H:%M:%S')
 					count += 1
@@ -396,7 +396,7 @@ def check_file_len(fname):
 	return i + 1
 
 	
-def get_reponse(url):
+def get_response(url):
 	"""
 	Get HTTP response for each link
 	"""
@@ -407,7 +407,7 @@ def get_reponse(url):
 	url = str(url).strip()
 	try:
 		with eventlet.Timeout(connect_timeout): # <= this is needed to prevent hanging on large pdfs
-			r = requests.head(url, allow_redirects=True)
+			r = requests.head(url, allow_redirects=True, headers={'User-Agent': 'Mozilla/5.0'}) 
 			if str(r.status_code).startswith('3') and r.history: # catch redirects
 				for resp in r.history:
 					redirto = resp.headers['Location']
@@ -425,8 +425,6 @@ def get_reponse(url):
 		msg = 'timeout','',''
 	except requests.exceptions.HTTPError as e:
 		msg = 'HTTPError','',''
-	except requests.exceptions.ConnectionError as e:
-		msg = 'Connection error','',''
 	except requests.exceptions.TooManyRedirects as e:
 		msg = 'Too many redirects','',''
 	except requests.exceptions.InvalidSchema as e:
@@ -441,6 +439,8 @@ def get_reponse(url):
 		msg = 'stopped','',''
 	except UnicodeEncodeError as e:
 		msg = 'unicode error','',''
+	except requests.exceptions.ConnectionError as e:
+		msg = 'Connection error','',''
 	except:
 		msg = sys.exc_info()[0],'',''
 	return msg
@@ -540,6 +540,7 @@ def make_tree():
 <script src="http://www.d3plus.org/js/d3plus.js"></script>
 <div class="container">
 <h1>Voyager Link Check</h1>
+<a href="https://github.com/pulcams/elink_checker" target="_BLANK">github</a>
 <p>Start date: 11/23/2015. Last report: """+time.strftime('%m/%d/%Y')+""".</p>
 <p>Statuses of the <span style='font-size:1.25em'>"""+total+"""</span> URLs checked so far...</p>"""
 
