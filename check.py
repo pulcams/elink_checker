@@ -406,17 +406,16 @@ def get_response(url):
 	connect_timeout = 30.0
 	url = str(url).strip()
 	try:
-		with eventlet.Timeout(connect_timeout): # <= this is needed to prevent hanging on large pdfs
-
+		with eventlet.Timeout(connect_timeout): # <= this is needed to prevent hanging on large pdfs			
 			if 'web.lexis-nexis.com' in url: # this is a bit flakey; trying it out
 				r = requests.get(url, allow_redirects=True, headers={'Accept': '*/*','User-Agent': 'python-requests/1.2.0'})
 			else:
 				r = requests.head(url, allow_redirects=True, headers={'Accept': '*/*','User-Agent': 'python-requests/1.2.0'})
 
-			if r.status_code == 405: # try GET ...
-				r = requests.get(url, allow_redirects=True, headers={'Accept': '*/*','User-Agent': 'python-requests/1.2.0'})
-			elif r.status_code == 403: # change user-agent
+			if r.status_code == 403: # change user-agent
 				r = requests.head(url, allow_redirects=True, headers={'Accept': '*/*','User-Agent': 'Mozilla/5.0'})
+			elif r.status_code == 405 or r.status_code == 500: # try GET ...
+				r = requests.get(url, allow_redirects=True, headers={'Accept': '*/*','User-Agent': 'python-requests/1.2.0'})
 				
 			if str(r.status_code).startswith('3') and r.history: # catch redirects
 				for resp in r.history:
@@ -513,7 +512,7 @@ def mv_outfiles():
 	newname = os.path.splitext(picklist)[0]
 	newname += '.csv' # be sure out file is .csv
 	
-	if not glob.glob(r''+outdir+'*.csv'):
+	if not glob.glob(r''+outdir+'*'+today+'.csv'):
 		print("no files to mv?")
 		exit
 
