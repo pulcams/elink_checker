@@ -192,6 +192,7 @@ def get_bibs(picklist):
 		for row in r:
 			bib = str(row[0]) # to put in log files below
 			url = row[1]
+			url = re.sub(ur'[\u0332]','',url.decode('utf8')).encode('utf8') # tentative, based on appearance of this one char.
 			host = row[2]
 			writer.writerow((bib,url,host))
 			c += 1
@@ -295,89 +296,93 @@ def query_elink_index(bibid,url,host):
 			count = int(count)
 	
 	if count < int(numtocheck):
-		for row in c:
-			bib = row[0]
-			ti = row[1]
-			suppressed = row[2]
-			gov945 = 'govdoc' if re.search('DOCS',str(row[3])) else 'none'
-			gov040 = 'govdoc' if re.search('MvI',str(row[4]),re.IGNORECASE) else 'none'
-			ldr07 = row[5]
-
-			if ignore_cache==False: # if checking the cache...	
-				with con:
-					url = url.decode('utf-8')
-					con.row_factory = lite.Row
-					cur = con.cursor()
-					cur.execute("SELECT * FROM bibs WHERE bib=? and url=?",(bib,url,))
-					rows = cur.fetchall()
-					if len(rows) == 0:
-						cached = False
+		try:
+			for row in c:
+				bib = row[0]
+				ti = row[1]
+				suppressed = row[2]
+				gov945 = 'govdoc' if re.search('DOCS',str(row[3])) else 'none'
+				gov040 = 'govdoc' if re.search('MvI',str(row[4]),re.IGNORECASE) else 'none'
+				ldr07 = row[5]
+	
+				if ignore_cache==False: # if checking the cache...	
+					with con:
+						url = url.decode('utf-8')
+						con.row_factory = lite.Row
+						cur = con.cursor()
+						cur.execute("SELECT * FROM bibs WHERE bib=? and url=?",(bib,url,))
+						rows = cur.fetchall()
+						if len(rows) == 0:
+							cached = False
+						else:
+							cached = True
+							for row in rows:
+								response = row['status']
+								redirect_status = row['redirect_status']
+								check_date = row['last_checked']
+								
+					# get number of days since bib was last checked
+					if cached == True and check_date is not None:
+						date2 = datetime.strptime(todaydb,'%Y-%m-%d %H:%M:%S')
+						date1 = datetime.strptime(str(check_date),'%Y-%m-%d %H:%M:%S')
+						datediff = abs((date2 - date1).days)
+	
+					if cached == True and (datediff < maxage): #and response == 200):
+						# don't bother to re-check if link was last checked before 'maxage' date
+						resp = response # from cache
+						redir = redirect_url # from cache
+						redirst = redirect_status # from cache
+						last_checked = check_date # from cache
 					else:
-						cached = True
-						for row in rows:
-							response = row['status']
-							redirect_status = row['redirect_status']
-							check_date = row['last_checked']
+						if host_list.count(host) < int(sample): # <= if haven't checked `sample` recs per this host
+							resp,redir,redirst = get_response(url) # <= check link
+							host_list.append(host)
+							last_checked = time.strftime('%Y-%m-%d %H:%M:%S')
+							count += 1
+							pinged = 'y'
 							
-				# get number of days since bib was last checked
-				if cached == True and check_date is not None:
-					date2 = datetime.strptime(todaydb,'%Y-%m-%d %H:%M:%S')
-					date1 = datetime.strptime(str(check_date),'%Y-%m-%d %H:%M:%S')
-					datediff = abs((date2 - date1).days)
-
-				if cached == True and (datediff < maxage): #and response == 200):
-					# don't bother to re-check if link was last checked before 'maxage' date
-					resp = response # from cache
-					redir = redirect_url # from cache
-					redirst = redirect_status # from cache
-					last_checked = check_date # from cache
-				else:
-					if host_list.count(host) < int(sample): # <= if haven't checked `sample` recs per this host
+				else: # if ignoring cache
+					if host_list.count(host) < int(sample):
 						resp,redir,redirst = get_response(url) # <= check link
 						host_list.append(host)
 						last_checked = time.strftime('%Y-%m-%d %H:%M:%S')
 						count += 1
 						pinged = 'y'
 						
-			else: # if ignoring cache
-				if host_list.count(host) < int(sample):
-					resp,redir,redirst = get_response(url) # <= check link
-					host_list.append(host)
-					last_checked = time.strftime('%Y-%m-%d %H:%M:%S')
-					count += 1
-					pinged = 'y'
+				if last_checked != '' and ignore_cache == False and str(resp) != '': # (if sample has been surpassed, status will be '')
+					with con:
+						cur = con.cursor() 
+						if cached == False:
+							# insert new url and statuses into db...
+							newurl = (bib, url, str(resp), redir, redirst, last_checked)
+							cur.executemany("INSERT INTO bibs VALUES(?, ?, ?, ?, ?, ?)", (newurl,))
+						else:
+							# or, if it was in the cache from a previous run but was from before the max date...
+							updateurl = (last_checked, str(resp), redir, redirst, bib, url)
+							cur.executemany("UPDATE bibs SET last_checked=?,status=?,redirect=?,redirect_status=? WHERE bib=? and url=?", (updateurl,))
+		
+				newrow = [bib, ti, host, url, resp, redir, redirst, datediff, suppressed, gov040, gov945, ldr07] # SeERs report
 					
-			if last_checked != '' and ignore_cache == False and str(resp) != '': # (if sample has been surpassed, status will be '')
-				with con:
-					cur = con.cursor() 
-					if cached == False:
-						# insert new url and statuses into db...
-						newurl = (bib, url, str(resp), redir, redirst, last_checked)
-						cur.executemany("INSERT INTO bibs VALUES(?, ?, ?, ?, ?, ?)", (newurl,))
-					else:
-						# or, if it was in the cache from a previous run but was from before the max date...
-						updateurl = (last_checked, resp, redir, redirst, bib, url)
-						cur.executemany("UPDATE bibs SET last_checked=?,status=?,redirect=?,redirect_status=? WHERE bib=? and url=?", (updateurl,))
-	
-			newrow = [bib, ti, host, url, resp, redir, redirst, datediff, suppressed, gov040, gov945, ldr07] # SeERs report
-				
-			if verbose:
-				print("%s checked -- %s, %s, %s, %s, %s, %s, %s, %s, %s, %s" % (count,bib,host,url,resp,redir,redirst,last_checked,suppressed,cached,pinged))
-				
-			# this may just be a temporary file to make sure the counts are correct (per host and per run)
-			with open(logdir+today+'_details.csv','ab+') as detailsfile:
-				details = [bib,host,url,resp,redir,redirst,last_checked,datediff,cached,pinged,count]
-				detailswriter = unicodecsv.writer(detailsfile, encoding='utf-8')
-				detailswriter.writerow(details)
-				
-			with open(outdir+picklist,'ab+') as outfile:
-				if ((str(resp) != '' and str(resp) != '200' and str(redirst) != '200') and (str(last_checked[:10]) == todaydb[:10]) and (str(resp) != 'SSL Error')): # just report out the fresh problems, and leave out ssl errors
-					report_writer = unicodecsv.writer(outfile, encoding='utf-8')
-					report_writer.writerow(newrow)
-			outlength = check_file_len(outdir+picklist)
-			if outlength >= (seerslimit + 1): # +1 for the header row
-				logging.info('Quitting after reporting bad links (%s)' % seerslimit)
-				return 'done'
+				if verbose:
+					print("%s checked -- %s, %s, %s, %s, %s, %s, %s, %s, %s, %s" % (count,bib,host,url,resp,redir,redirst,last_checked,suppressed,cached,pinged))
+					
+				# this may just be a temporary file to make sure the counts are correct (per host and per run)
+				with open(logdir+today+'_details.csv','ab+') as detailsfile:
+					details = [bib,host,url,resp,redir,redirst,last_checked,datediff,cached,pinged,count]
+					detailswriter = unicodecsv.writer(detailsfile, encoding='utf-8')
+					detailswriter.writerow(details)
+					
+				with open(outdir+picklist,'ab+') as outfile:
+					if ((str(resp) != '' and str(resp) != '200' and str(redirst) != '200') and (str(last_checked[:10]) == todaydb[:10]) and (str(resp) != 'SSL Error')): # just report out the fresh problems, and leave out ssl errors
+						report_writer = unicodecsv.writer(outfile, encoding='utf-8')
+						report_writer.writerow(newrow)
+				outlength = check_file_len(outdir+picklist)
+				if outlength >= (seerslimit + 1): # +1 for the header row
+					logging.info('Quitting after reporting bad links (%s)' % seerslimit)
+					return 'done'
+		except Exception as e:
+			exc_type,exc_obj,exc_tb = sys.exc_info()
+			logging.info('problem in : %s obj: %s line: %s' % (exc_type,exc_obj,exc_tb.tb_lineno))
 	else:
 		return 'done'
 
@@ -622,7 +627,7 @@ if __name__ == "__main__":
 	parser.add_argument("-v", "--verbose",required=False, default=False, dest="verbose", action="store_true", help="Print out bibs and urls as it runs.")
 	parser.add_argument("-n", "--number",required=False, default=1500, dest="numtocheck", help="Number of links to check")
 	parser.add_argument("-s", "--sample",required=False, default=4, dest="sample", help="Max number of urls per domain")
-	parser.add_argument('-a','--age',dest="maxage",help="Max days after which to re-check WorldCat",required=False, default=90)
+	parser.add_argument('-a','--age',dest="maxage",help="Max days after which to re-check",required=False, default=90)
 	parser.add_argument("-l", "--limit",required=False, default=100, dest="seerslimit", help="Max number of urls for the SeERs unit to check")
 	args = vars(parser.parse_args())
 
@@ -638,7 +643,7 @@ if __name__ == "__main__":
 	logging.info('='*75)
 	if not picklist: # if no file given, run query against vger...
 		picklist = 'links_to_check_'+today+'.csv'
-		get_bibs(picklist) # generate a picklist, starting from the bib id in ./log/lastbib.txt
+		get_bibs(picklist)
 
 	main(picklist)
 	make_tree()
