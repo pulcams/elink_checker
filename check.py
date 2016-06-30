@@ -36,6 +36,7 @@ import sys
 import time
 import unicodecsv
 import urllib
+import xlrd
 from datetime import date, datetime, timedelta
 eventlet.monkey_patch()
 
@@ -56,6 +57,7 @@ indir = config.get('env', 'indir')
 outdir = config.get('env', 'outdir')
 logdir = config.get('env', 'logdir')
 share = config.get('env','share')
+problems = config.get('env','problems')
 
 DB = config.get('db','sqlite')
 USER = config.get('vger', 'user')
@@ -202,10 +204,37 @@ def get_bibs(picklist):
 		print('wrote out report')
 
 
+def get_problem_urls():
+	'''
+	Get list of problem urls that are being worked on, and which we want to ignore
+	Assumes file will be in 
+	'''
+	probs = glob.glob(problems + 'URL_Problems_????????.xlsx')
+	if probs:
+		workbook = xlrd.open_workbook(probs[0])
+		worksheet = workbook.sheet_by_index(0)
+		offset = 1
+		rows = []
+		for i, row in enumerate(range(worksheet.nrows)):
+			if i <= offset:
+				continue
+			r = []
+			for j, col in enumerate(range(worksheet.ncols)):
+				r.append(worksheet.cell_value(i,j))
+			rows.append(r)
+			problem_urls = []
+			for thisrow in rows:
+				url = thisrow[4]
+				problem_urls.append(str(url))
+		return problem_urls
+	
+	
 def make_report(picklist):
 	"""
 	Input is the csv picklist. Output is report with HTTP statuses added.
-	"""	
+	"""
+	problem_urls = get_problem_urls()
+	
 	try:
 		os.rename(outdir+picklist, outdir+picklist + '.bak') # back up output from previous run on same day (once)
 	except OSError:
@@ -231,9 +260,10 @@ def make_report(picklist):
 					bibid = row[0]
 					url = row[1].decode('utf-8')
 					host = row[2]
-					q = query_elink_index(bibid,url,host) # <= check against ELINK_INDEX to get more data and check link if appropriate
-					if q == 'done':
-						return
+					if ((problem_urls and url not in problem_urls) or (not problem_urls)):
+						q = query_elink_index(bibid,url,host) # <= check against ELINK_INDEX to get more data and check link if appropriate
+						if q == 'done':
+							return
 		except Exception as e:
 			exc_type,exc_obj,exc_tb = sys.exc_info()
 			logging.info('problem: %s obj: %s line: %s' % (exc_type,exc_obj,exc_tb.tb_lineno))
@@ -412,10 +442,10 @@ def get_response(url):
 	url = str(url).strip()
 	try:
 		with eventlet.Timeout(connect_timeout): # <= this is needed to prevent hanging on large pdfs			
-			if 'web.lexis-nexis.com' in url: # this is a bit flakey; trying it out
+			if 'web.lexis-nexis.com' in url or 'oecd-ilibrary' in url or 'edis.ifas.ufl.edu' in url: # this is a bit flakey; trying it out
 				r = requests.get(url, allow_redirects=True, headers={'Accept': '*/*','User-Agent': 'python-requests/1.2.0'})
 			else:
-				r = requests.head(url, allow_redirects=True, headers={'Accept': '*/*','User-Agent': 'python-requests/1.2.0'})
+				r = requests.head(url, allow_redirects=True, verify=False, headers={'Accept': '*/*','User-Agent': 'python-requests/1.2.0'})
 
 			if r.status_code == 403: # change user-agent
 				r = requests.head(url, allow_redirects=True, headers={'Accept': '*/*','User-Agent': 'Mozilla/5.0'})
@@ -554,7 +584,7 @@ def make_tree():
 <script src="http://www.d3plus.org/js/d3plus.js"></script>
 <div class="container">
 <h1>Voyager Link Check</h1>
-<a href="https://github.com/pulcams/elink_checker" target="_BLANK">github</a>
+<a href="https://github.com/pulcams/elink_checker" target="_BLANK">code on github</a>
 <p>Start date: 11/23/2015. Latest report: """+time.strftime('%m/%d/%Y')+""".</p>
 <p>Statuses of the <span style='font-size:1.25em'>"""+total+"""</span> URLs checked so far...</p>"""
 
