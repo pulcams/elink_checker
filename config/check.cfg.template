@@ -3,6 +3,7 @@ indir=
 outdir=
 logdir=
 share=
+problems=
 
 [vger]
 user=
