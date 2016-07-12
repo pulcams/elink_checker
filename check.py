@@ -440,23 +440,30 @@ def get_response(url):
 	msg = ''
 	connect_timeout = 30.0
 	url = str(url).strip()
+	s = requests.Session()
+	headers_moz = {'Accept': '*/*','User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:47.0) Gecko/20100101 Firefox/47.0'}
+	headers_req = {'Accept': '*/*','User-Agent': 'python-requests/1.2.0'}
 	try:
-		with eventlet.Timeout(connect_timeout): # <= this is needed to prevent hanging on large pdfs			
-			if 'web.lexis-nexis.com' in url or 'oecd-ilibrary' in url or 'edis.ifas.ufl.edu' in url: # this is a bit flakey; trying it out
-				r = requests.get(url, allow_redirects=True, headers={'Accept': '*/*','User-Agent': 'python-requests/1.2.0'})
-			else:
-				r = requests.head(url, allow_redirects=True, verify=False, headers={'Accept': '*/*','User-Agent': 'python-requests/1.2.0'})
+		with eventlet.Timeout(connect_timeout): # <= this is needed to prevent hanging on large pdfs
+			
+			# get response ('r')			
+			if 'web.lexis-nexis.com' in url or 'oecd-ilibrary' in url or 'edis.ifas.ufl.edu' in url or 'www.istat.it/it' in url: # GET
+				r = s.get(url, allow_redirects=True, headers=headers_moz)
+			else: # HEAD
+				r = s.head(url, allow_redirects=True, verify=False, headers=headers_req)
 
+			# handle 403 and 405
 			if r.status_code == 403: # change user-agent
-				r = requests.head(url, allow_redirects=True, headers={'Accept': '*/*','User-Agent': 'Mozilla/5.0'})
+				r = s.head(url, allow_redirects=True, headers=headers_moz) # HEAD
 			elif r.status_code == 405 or r.status_code == 500: # try GET ...
-				r = requests.get(url, allow_redirects=True, headers={'Accept': '*/*','User-Agent': 'python-requests/1.2.0'})
-				
+				r = s.get(url, allow_redirects=True, headers=headers_req) # GET
+
+			# handle 3xx (if not too many redirects)	
 			if str(r.status_code).startswith('3') and r.history: # catch redirects
 				for resp in r.history:
 					redirto = resp.headers['Location']
 					try:
-						requests.head(redirto).status_code
+						s.head(redirto).status_code
 					except: # in case there's a bad redirect URL
 						redirstatus = 'bad redirect URL'
 					hist = resp.status_code, redirto, redirstatus
@@ -654,7 +661,7 @@ if __name__ == "__main__":
 	parser.add_argument('-f','--filename',required=False,dest="picklist",help="Optional. The name of picklist file, e.g. 'bibs_20150415.csv' (assumed to be in ./in). Can just be a list of BIB_IDs.")
 	parser.add_argument("-C", "--ignore-cache",required=False, default=False,dest="ignore_cache", action="store_true", help="Optionally ignore the cache to test all URLs freshly.")
 	parser.add_argument("-c", "--copy",required=False, default=False, dest="copy_report", action="store_true", help="Copy the resulting report to the share specified in cfg file.")
-	parser.add_argument("-v", "--verbose",required=False, default=False, dest="verbose", action="store_true", help="Print out bibs and urls as it runs.")
+	parser.add_argument("-v", "--verbose",required=False, default=True, dest="verbose", action="store_true", help="Print out bibs and urls as it runs.")
 	parser.add_argument("-n", "--number",required=False, default=1500, dest="numtocheck", help="Number of links to check")
 	parser.add_argument("-s", "--sample",required=False, default=4, dest="sample", help="Max number of urls per domain")
 	parser.add_argument('-a','--age',dest="maxage",help="Max days after which to re-check",required=False, default=90)
