@@ -194,7 +194,11 @@ def get_bibs(picklist):
 		for row in r:
 			bib = str(row[0]) # to put in log files below
 			url = row[1]
-			url = re.sub(ur'[\u0332]','',url.decode('utf8')).encode('utf8') # tentative, based on appearance of this one char.
+			# the following re.sub are tentative, based on appearance of these combining chars. (TODO: catch automatically?)
+			url = re.sub(ur'[\u0300]','',url.decode('utf8')).encode('utf8')
+			url = re.sub(ur'[\u0301]','',url.decode('utf8')).encode('utf8')
+			url = re.sub(ur'[\u0308]','',url.decode('utf8')).encode('utf8')
+			url = re.sub(ur'[\u0332]','',url.decode('utf8')).encode('utf8')		
 			host = row[2]
 			writer.writerow((bib,url,host))
 			c += 1
@@ -438,7 +442,7 @@ def get_response(url):
 	redir = ''
 	redirstatus = ''
 	msg = ''
-	connect_timeout = 30.0
+	connect_timeout = 40.0
 	url = str(url).strip()
 	s = requests.Session()
 	headers_moz = {'Accept': '*/*','User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:47.0) Gecko/20100101 Firefox/47.0'}
@@ -447,16 +451,16 @@ def get_response(url):
 		with eventlet.Timeout(connect_timeout): # <= this is needed to prevent hanging on large pdfs
 			
 			# get response ('r')			
-			if 'web.lexis-nexis.com' in url or 'oecd-ilibrary' in url or 'edis.ifas.ufl.edu' in url or 'www.istat.it/it' in url: # GET
+			if 'web.lexis-nexis.com' in url or 'oecd-ilibrary' in url or 'edis.ifas.ufl.edu' in url or 'www.istat.it/it' in url or 'secure.cihi.ca' in url: # GET
 				r = s.get(url, allow_redirects=True, headers=headers_moz)
 			else: # HEAD
-				r = s.head(url, allow_redirects=True, verify=False, headers=headers_req)
+				r = s.head(url, allow_redirects=True, verify=False, headers=headers_moz)
 
 			# handle 403 and 405
 			if r.status_code == 403: # change user-agent
 				r = s.head(url, allow_redirects=True, headers=headers_moz) # HEAD
 			elif r.status_code == 405 or r.status_code == 500: # try GET ...
-				r = s.get(url, allow_redirects=True, headers=headers_req) # GET
+				r = s.get(url, allow_redirects=True, headers=headers_moz) # GET
 
 			# handle 3xx (if not too many redirects)	
 			if str(r.status_code).startswith('3') and r.history: # catch redirects
@@ -582,6 +586,11 @@ def make_tree():
 		rows = cur.fetchall()
 		for row in rows:
 			total = str(row[0])
+
+	with open(indir+picklist,'r') as f:
+		reader = csv.reader(f,delimiter = ',')
+		data = list(reader)
+		row_count = len(data)
 	
 	header = """<!doctype html>
 <meta charset="utf-8">
@@ -592,8 +601,11 @@ def make_tree():
 <div class="container">
 <h1>Voyager Link Check</h1>
 <a href="https://github.com/pulcams/elink_checker" target="_BLANK">code on github</a>
-<p>Start date: 11/23/2015. Latest report: """+time.strftime('%m/%d/%Y')+""".</p>
-<p>Statuses of the <span style='font-size:1.25em'>"""+total+"""</span> URLs checked so far...</p>"""
+<p>Start date: 11/23/2015</p>
+<p>Latest report: """+time.strftime('%m/%d/%Y')+""".</p>
+<p>Links to check:"""+row_count+"""</p>
+<p>Checked so far:"""+total+"""</p>
+<p>Statuses found...</p>"""
 
 	body = """<sub><a href='http://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html' target="_BLANK">status codes</a></sub>
 <div id="viz" style="margin:10px 10px 10px 0px;height:600px;"></div>
