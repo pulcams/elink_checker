@@ -451,7 +451,7 @@ def get_response(url):
 		with eventlet.Timeout(connect_timeout): # <= this is needed to prevent hanging on large pdfs
 			
 			# get response ('r')			
-			if 'web.lexis-nexis.com' in url or 'oecd-ilibrary' in url or 'edis.ifas.ufl.edu' in url or 'www.istat.it/it' in url or 'secure.cihi.ca' in url: # GET
+			if 'web.lexis-nexis.com' in url or 'oecd-ilibrary' in url or 'edis.ifas.ufl.edu' in url or 'www.istat.it/it' in url or 'secure.cihi.ca' in url or 'fas.org/irp/' in url: # GET
 				r = s.get(url, allow_redirects=True, headers=headers_moz)
 			else: # HEAD
 				r = s.head(url, allow_redirects=True, verify=False, headers=headers_moz)
@@ -587,10 +587,14 @@ def make_tree():
 		for row in rows:
 			total = str(row[0])
 
-	with open(indir+picklist,'r') as f:
+	with open(indir+str(picklist),'r') as f:
 		reader = csv.reader(f,delimiter = ',')
 		data = list(reader)
-		row_count = len(data)
+		row_count = str(len(data))
+
+	
+	percent = (float(total)/float(row_count))
+	percent = "{:.1%}".format(percent)
 	
 	header = """<!doctype html>
 <meta charset="utf-8">
@@ -602,9 +606,9 @@ def make_tree():
 <h1>Voyager Link Check</h1>
 <a href="https://github.com/pulcams/elink_checker" target="_BLANK">code on github</a>
 <p>Start date: 11/23/2015</p>
-<p>Latest report: """+time.strftime('%m/%d/%Y')+""".</p>
-<p>Links to check:"""+row_count+"""</p>
-<p>Checked so far:"""+total+"""</p>
+<p>Latest report: """+time.strftime('%m/%d/%Y')+"""</p>
+<p>Links to check: """+row_count+"""</p>
+<p>Checked so far: """+total+""" ("""+percent+""")</p>
 <p>Statuses found...</p>"""
 
 	body = """<sub><a href='http://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html' target="_BLANK">status codes</a></sub>
