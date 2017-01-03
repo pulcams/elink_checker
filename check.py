@@ -451,7 +451,7 @@ def get_response(url):
 		with eventlet.Timeout(connect_timeout): # <= this is needed to prevent hanging on large pdfs
 			
 			# get response ('r')			
-			if 'web.lexis-nexis.com' in url or 'oecd-ilibrary' in url or 'edis.ifas.ufl.edu' in url or 'www.istat.it/it' in url or 'secure.cihi.ca' in url or 'fas.org/irp/' in url: # GET
+			if 'web.lexis-nexis.com' in url or 'oecd-ilibrary' in url or 'edis.ifas.ufl.edu' in url or 'www.istat.it/it' in url or 'secure.cihi.ca' in url or 'fas.org/irp/' in url or 'www.fas.org' in url: # GET
 				r = s.get(url, allow_redirects=True, headers=headers_moz)
 			else: # HEAD
 				r = s.head(url, allow_redirects=True, verify=False, headers=headers_moz)
@@ -658,6 +658,8 @@ def make_tree():
 		rows = cur.fetchall()
 		for row in rows:
 			response = str(row[0])
+			response = re.sub('[<>\s]',''response)
+			response = re.sub('class',''response)
 			count = row[1]
 			if rownum == 0:
 				htmlfile.write('{"value":%s,"name":"%s"}' % (count,response))
