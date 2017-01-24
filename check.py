@@ -86,7 +86,7 @@ def main(picklist):
 	split_outfile(picklist)
 	if copy_report == True:
 		mv_outfiles()
-	make_tree()
+	make_viz()
 	print('all done!')
 	print('-' * 50)
 	logging.info('done')
@@ -572,7 +572,7 @@ def mv_outfiles():
 			pass
 
   
-def make_tree():
+def make_viz():
 	"""
 	Generate simple treemap
 	"""
@@ -594,7 +594,8 @@ def make_tree():
 
 	
 	percent = (float(total)/float(row_count))
-	percent = "{:.1%}".format(percent)
+	percent_remaining = "{:.1}".format(100.0 - percent)
+	percent = "{:.1}".format(percent)
 	
 	header = """<!doctype html>
 <meta charset="utf-8">
@@ -604,12 +605,12 @@ def make_tree():
 <script src="http://www.d3plus.org/js/d3plus.js"></script>
 <div class="container">
 <h1>Voyager Link Check</h1>
-<p>We're methodically checking the status of links within our Voyager bib records. This requires manual attention, so will take a while. Code: <a href="https://github.com/pulcams/elink_checker" target="_BLANK">https://github.com/pulcams/elink_checker</a></p></p>
+<p>We're methodically checking the status of links within our Voyager bib records. This requires manual attention, so is not a quick process. Code: <a href="https://github.com/pulcams/elink_checker" target="_BLANK">https://github.com/pulcams/elink_checker</a></p></p>
 <table class="table-condensed">
-<tr><td>Start date</td><td>11/23/2015</td></tr>
-<tr><td>Latest report</td><td>"""+time.strftime('%m/%d/%Y')+"""</td></tr>
-<tr><td>Total links to check*</td><td>"""+row_count+"""</td></tr>
-<tr><td>Checked so far</td><td>"""+total+""" ("""+percent+""")</td></tr>
+<tr><td>Start date</td><td>11/23/2015</td><td></td></tr>
+<tr><td>Latest report</td><td>"""+time.strftime('%m/%d/%Y')+"""</td><td></td></tr>
+<tr><td>Total links to check*</td><td>"""+row_count+"""</td><td></td></tr>
+<tr><td>Checked so far</td><td>"""+total+""" ("""+percent+"""%)</td><td><span id="pie1"></span></td></tr>
 </table>
 <p>*<sub>This is not all links in Voyager; many hosts do not require checking.</sub></p>
 <h2>Summary</h2>
@@ -629,18 +630,56 @@ def make_tree():
    d3plus.viz()
     .container("#viz")
     .data(data)
-    .color(function(d){
+   /* .color(function(d){
       return d.value > 0 ? "#BDDEBD" : "#ADD6AD";
-    })
-    .type("treemap")
+    }) */
+    .type("tree_map")
     .id("name")
     .size("value")
     .draw()
 
-</script> 
+</script>
+<script>
+var color = d3.scale.ordinal()
+		    .range(["#ccc","#d6616b"]);
+
+var w = 30,                        
+	    h = 30,                            
+	    r = 10
+
+elink_data = [{label:"to check",percentage:"""+percent_remaining+""",value:"""+row_count+"""},
+				{label:"checked",percentage:"""+percent+""",value:"""+total+"""}];
+
+var vis = d3.select("#pie1")
+	        .append("svg:svg")
+	        .data([elink_data])
+	            .attr("width", w)
+	            .attr("height", h)
+	        .append("svg:g") 
+	            .attr("transform", "translate(" + r + "," + r + ")")
+	        
+	
+			var arc = d3.svg.arc()
+	        .outerRadius(r);
+	
+			var pie = d3.layout.pie()
+	        .value(function(d) { return d.value; });
+	
+			var arcs = vis.selectAll("g.slice")
+	        .data(pie) 
+	        .enter() 
+	            .append("svg:g")
+	                .attr("class", "slice");
+	        arcs.append("svg:path")
+	                .attr("fill", function(d, i) { return color(i); } )
+	                .attr("d", arc);
+	        arcs.append("svg:title") 
+						.text(function(d) { return d.data.percentage + "% " + d.data.label; });
+	
+</script>
 """
 	htmlfile.write(header)
-	htmlfile.write('<table class="table-condensed table-bordered">\n<tr><td><a href="http://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html" target="_BLANK">status</a></td><td>no. of links</td></tr>\n')
+	htmlfile.write('<table class="table-condensed table-bordered table-hover">\n<tr><td><a href="http://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html" target="_BLANK">status</a></td><td>no. of links</td></tr>\n')
 	with con:
 		con.row_factory = lite.Row
 		cur = con.cursor()
@@ -648,6 +687,8 @@ def make_tree():
 		rows = cur.fetchall()
 		for row in rows:
 			response = str(row[0])
+			response = re.sub('[<>]','',response)
+			response = re.sub('class ','',response)
 			count = row[1]
 			htmlfile.write('<tr><td>%s</td><td>%s</td></tr>\n' % (response,count))
 	htmlfile.write("</table>")
@@ -657,12 +698,12 @@ def make_tree():
 	with con:
 		con.row_factory = lite.Row
 		cur = con.cursor()
-		cur.execute("select status, count(status) from bibs group by status")
+		cur.execute("select status, count(status) from bibs where status <> 200 group by status")
 		rows = cur.fetchall()
 		for row in rows:
 			response = str(row[0])
-			response = re.sub('[<>\s]',''response)
-			response = re.sub('class',''response)
+			response = re.sub('[<>]','',response)
+			response = re.sub('class ','',response)
 			count = row[1]
 			if rownum == 0:
 				htmlfile.write('{"value":%s,"name":"%s"}' % (count,response))
@@ -703,5 +744,5 @@ if __name__ == "__main__":
 		picklist = 'links_to_check_'+today+'.csv'
 		get_bibs(picklist)
 
-	main(picklist)
-	make_tree()
+	#main(picklist)
+	make_viz()
