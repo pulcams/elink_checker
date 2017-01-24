@@ -604,15 +604,18 @@ def make_tree():
 <script src="http://www.d3plus.org/js/d3plus.js"></script>
 <div class="container">
 <h1>Voyager Link Check</h1>
-<a href="https://github.com/pulcams/elink_checker" target="_BLANK">code on github</a>
-<p>Start date: 11/23/2015</p>
-<p>Latest report: """+time.strftime('%m/%d/%Y')+"""</p>
-<p>Links to check: """+row_count+"""</p>
-<p>Checked so far: """+total+""" ("""+percent+""")</p>
-<p>Statuses found...</p>"""
+<p>We're methodically checking the status of links within our Voyager bib records. This requires manual attention, so will take a while. Code: <a href="https://github.com/pulcams/elink_checker" target="_BLANK">https://github.com/pulcams/elink_checker</a></p></p>
+<table class="table-condensed">
+<tr><td>Start date</td><td>11/23/2015</td></tr>
+<tr><td>Latest report</td><td>"""+time.strftime('%m/%d/%Y')+"""</td></tr>
+<tr><td>Total links to check*</td><td>"""+row_count+"""</td></tr>
+<tr><td>Checked so far</td><td>"""+total+""" ("""+percent+""")</td></tr>
+</table>
+<p>*<sub>This is not all links in Voyager; many hosts do not require checking.</sub></p>
+<h2>Summary</h2>
+<p>Problem statuses we've come across and fixed ...</p>"""
 
-	body = """<sub><a href='http://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html' target="_BLANK">status codes</a></sub>
-<div id="viz" style="margin:10px 10px 10px 0px;height:600px;"></div>
+	body = """<h2>Treemap</h2><div id="viz" style="margin:10px 10px 10px 0px;height:300px;"></div>
 </div>
 <script>
 
@@ -637,11 +640,11 @@ def make_tree():
 </script> 
 """
 	htmlfile.write(header)
-	htmlfile.write('<table class="table-condensed table-bordered">\n<tr><td>status</td><td>no. of links</td></tr>\n')
+	htmlfile.write('<table class="table-condensed table-bordered">\n<tr><td><a href="http://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html" target="_BLANK">status</a></td><td>no. of links</td></tr>\n')
 	with con:
 		con.row_factory = lite.Row
 		cur = con.cursor()
-		cur.execute("select status, count(status) from bibs group by status")
+		cur.execute("SELECT status, COUNT(status) FROM bibs WHERE status <> 200 GROUP BY status")
 		rows = cur.fetchall()
 		for row in rows:
 			response = str(row[0])
