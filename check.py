@@ -605,7 +605,8 @@ def make_viz():
 <script src="http://www.d3plus.org/js/d3plus.js"></script>
 <div class="container">
 <h1>Voyager Link Check</h1>
-<p>We're methodically checking the status of links within our Voyager bib records. This requires manual attention, so is not a quick process. Code: <a href="https://github.com/pulcams/elink_checker" target="_BLANK">https://github.com/pulcams/elink_checker</a></p></p>
+<p>We're methodically checking the status of links within our Voyager bib records. This requires manual attention, so is an ongoing, slow process. Here is the <a href="https://github.com/pulcams/elink_checker" target="_BLANK">code</a>.</p>
+<hr />
 <table class="table-condensed">
 <tr><td>Start date</td><td>11/23/2015</td><td></td></tr>
 <tr><td>Latest report</td><td>"""+time.strftime('%m/%d/%Y')+"""</td><td></td></tr>
@@ -613,10 +614,12 @@ def make_viz():
 <tr><td>Checked so far</td><td>"""+total+""" ("""+percent+"""%)</td><td><span id="pie1"></span></td></tr>
 </table>
 <p>*<sub>This is not all links in Voyager; many hosts do not require checking.</sub></p>
+<hr />
 <h2>Summary</h2>
 <p>Problem statuses we've come across and fixed ...</p>"""
 
-	body = """<h2>Treemap</h2><div id="viz" style="margin:10px 10px 10px 0px;height:300px;"></div>
+	body = """<hr />
+	<h2>Treemap</h2><div id="viz" style="margin:10px 10px 10px 0px;height:300px;"></div>
 </div>
 <script>
 
@@ -744,5 +747,5 @@ if __name__ == "__main__":
 		picklist = 'links_to_check_'+today+'.csv'
 		get_bibs(picklist)
 
-	#main(picklist)
+	main(picklist)
 	make_viz()
